@@ -654,11 +654,23 @@ async function renderConseillers() {
                   <p class="text-xs text-gray-500 mb-3">
                     <i class="fas fa-calendar mr-2"></i>Créé: ${dayjs(conseiller.created_at).format('DD/MM/YYYY')}
                   </p>
-                  <button onclick="toggleConseiller(${conseiller.id})" 
-                    class="w-full ${conseiller.is_active === 1 ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'} text-white px-4 py-2 rounded-lg transition text-sm">
-                    <i class="fas fa-${conseiller.is_active === 1 ? 'ban' : 'check'} mr-2"></i>
-                    ${conseiller.is_active === 1 ? 'Désactiver' : 'Activer'}
-                  </button>
+                  <div class="space-y-2">
+                    <div class="grid grid-cols-2 gap-2">
+                      <button onclick="openEditConseillerModal(${conseiller.id}, '${conseiller.username.replace(/'/g, "\\'")}', '${conseiller.full_name.replace(/'/g, "\\'")}', ${conseiller.is_active})" 
+                        class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg transition text-sm">
+                        <i class="fas fa-edit mr-1"></i>Modifier
+                      </button>
+                      <button onclick="toggleConseiller(${conseiller.id})" 
+                        class="${conseiller.is_active === 1 ? 'bg-orange-500 hover:bg-orange-600' : 'bg-green-500 hover:bg-green-600'} text-white px-3 py-2 rounded-lg transition text-sm">
+                        <i class="fas fa-${conseiller.is_active === 1 ? 'ban' : 'check'} mr-1"></i>
+                        ${conseiller.is_active === 1 ? 'Désactiver' : 'Activer'}
+                      </button>
+                    </div>
+                    <button onclick="deleteConseiller(${conseiller.id}, '${conseiller.full_name.replace(/'/g, "\\'")}', ${conseiller.is_available})" 
+                      class="w-full bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg transition text-sm">
+                      <i class="fas fa-trash mr-1"></i>Supprimer
+                    </button>
+                  </div>
                 </div>
               `).join('')}
             </div>
@@ -837,6 +849,122 @@ async function toggleConseiller(conseillerId) {
   try {
     const result = await apiCall(`/users/conseiller/${conseillerId}/toggle`, { method: 'PATCH' })
     showNotification(result.is_active === 1 ? 'Conseiller activé' : 'Conseiller désactivé', 'success')
+    await switchTab('conseillers')
+  } catch (error) {
+    showNotification(error.response?.data?.error || 'Erreur', 'error')
+  }
+}
+
+// Ouvrir le modal de modification d'un conseiller
+function openEditConseillerModal(id, username, fullName, isActive) {
+  const modalHtml = `
+    <div id="editConseillerModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeEditConseillerModal(event)">
+      <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4" onclick="event.stopPropagation()">
+        <div class="px-6 py-4 bg-blue-500 rounded-t-lg">
+          <h2 class="text-xl font-bold text-white">
+            <i class="fas fa-edit mr-2"></i>Modifier le conseiller
+          </h2>
+        </div>
+        <form id="editConseillerForm" class="p-6">
+          <input type="hidden" id="edit_conseiller_id" value="${id}">
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Nom complet *</label>
+              <input type="text" id="edit_full_name" value="${fullName}" required 
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Nom d'utilisateur *</label>
+              <input type="text" id="edit_username" value="${username}" required 
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">
+                Nouveau mot de passe <span class="text-xs text-gray-500">(laisser vide pour ne pas modifier)</span>
+              </label>
+              <input type="password" id="edit_password" 
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+            </div>
+          </div>
+          <div class="mt-6 flex space-x-3">
+            <button type="submit" 
+              class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition">
+              <i class="fas fa-save mr-2"></i>Enregistrer
+            </button>
+            <button type="button" onclick="closeEditConseillerModal()" 
+              class="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 rounded-lg transition">
+              <i class="fas fa-times mr-2"></i>Annuler
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `
+  
+  document.body.insertAdjacentHTML('beforeend', modalHtml)
+  
+  // Ajouter l'event listener pour le formulaire
+  document.getElementById('editConseillerForm').addEventListener('submit', async (e) => {
+    e.preventDefault()
+    await updateConseiller()
+  })
+}
+
+// Fermer le modal de modification
+function closeEditConseillerModal(event) {
+  if (!event || event.target.id === 'editConseillerModal') {
+    const modal = document.getElementById('editConseillerModal')
+    if (modal) {
+      modal.remove()
+    }
+  }
+}
+
+// Mettre à jour un conseiller
+async function updateConseiller() {
+  try {
+    const id = document.getElementById('edit_conseiller_id').value
+    const data = {
+      full_name: document.getElementById('edit_full_name').value,
+      username: document.getElementById('edit_username').value
+    }
+    
+    const password = document.getElementById('edit_password').value
+    if (password) {
+      data.password = password
+    }
+    
+    await apiCall(`/users/conseiller/${id}`, { method: 'PATCH', data })
+    showNotification('Conseiller modifié avec succès !', 'success')
+    closeEditConseillerModal()
+    await switchTab('conseillers')
+  } catch (error) {
+    showNotification(error.response?.data?.error || 'Erreur', 'error')
+  }
+}
+
+// Supprimer un conseiller
+async function deleteConseiller(conseillerId, fullName, isAvailable) {
+  // Vérifier si le conseiller est occupé
+  if (isAvailable === 0) {
+    showNotification('Impossible de supprimer: le conseiller a un client en cours', 'warning')
+    return
+  }
+  
+  const confirmed = confirm(
+    `⚠️ ATTENTION: Êtes-vous sûr de vouloir supprimer le conseiller "${fullName}" ?\n\n` +
+    `Cette action est IRRÉVERSIBLE et supprimera:\n` +
+    `- Le compte du conseiller\n` +
+    `- Toutes ses sessions\n` +
+    `- Son historique restera dans les logs\n\n` +
+    `Tapez OK pour confirmer la suppression.`
+  )
+  
+  if (!confirmed) return
+  
+  try {
+    await apiCall(`/users/conseiller/${conseillerId}`, { method: 'DELETE' })
+    showNotification('Conseiller supprimé avec succès', 'success')
     await switchTab('conseillers')
   } catch (error) {
     showNotification(error.response?.data?.error || 'Erreur', 'error')
@@ -1032,5 +1160,9 @@ window.switchTab = switchTab
 window.callClient = callClient
 window.completeClient = completeClient
 window.toggleConseiller = toggleConseiller
+window.openEditConseillerModal = openEditConseillerModal
+window.closeEditConseillerModal = closeEditConseillerModal
+window.updateConseiller = updateConseiller
+window.deleteConseiller = deleteConseiller
 window.changePeriod = changePeriod
 window.logout = logout

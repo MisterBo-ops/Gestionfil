@@ -276,6 +276,141 @@ app.patch('/api/users/conseiller/:id/toggle', async (c) => {
   }
 })
 
+// Modifier un conseiller
+app.patch('/api/users/conseiller/:id', async (c) => {
+  try {
+    const token = c.req.header('Authorization')?.replace('Bearer ', '')
+    if (!token) {
+      return c.json({ error: 'Non autorisé' }, 401)
+    }
+    
+    const currentUser = await verifySession(c.env.DB, token)
+    if (!currentUser || !['chef', 'team_leader'].includes(currentUser.role as string)) {
+      return c.json({ error: 'Accès refusé' }, 403)
+    }
+    
+    const conseillerId = c.req.param('id')
+    const { username, full_name, password } = await c.req.json()
+    
+    // Vérifier que le conseiller existe
+    const conseiller = await c.env.DB.prepare(`
+      SELECT id, username FROM users WHERE id = ? AND role = 'conseiller'
+    `).bind(conseillerId).first()
+    
+    if (!conseiller) {
+      return c.json({ error: 'Conseiller non trouvé' }, 404)
+    }
+    
+    // Vérifier si le nouveau username existe déjà (si différent de l'actuel)
+    if (username && username !== conseiller.username) {
+      const existing = await c.env.DB.prepare(`
+        SELECT id FROM users WHERE username = ? AND id != ?
+      `).bind(username, conseillerId).first()
+      
+      if (existing) {
+        return c.json({ error: 'Ce nom d\'utilisateur existe déjà' }, 400)
+      }
+    }
+    
+    // Préparer les champs à mettre à jour
+    const updates: string[] = []
+    const values: any[] = []
+    
+    if (full_name) {
+      updates.push('full_name = ?')
+      values.push(full_name)
+    }
+    
+    if (username) {
+      updates.push('username = ?')
+      values.push(username)
+    }
+    
+    if (password) {
+      const passwordHash = await bcrypt.hash(password, 10)
+      updates.push('password_hash = ?')
+      values.push(passwordHash)
+    }
+    
+    updates.push('updated_at = CURRENT_TIMESTAMP')
+    values.push(conseillerId)
+    
+    if (updates.length > 1) { // > 1 car updated_at est toujours présent
+      await c.env.DB.prepare(`
+        UPDATE users SET ${updates.join(', ')} WHERE id = ?
+      `).bind(...values).run()
+      
+      // Log l'activité
+      await c.env.DB.prepare(`
+        INSERT INTO activity_logs (user_id, action, details) VALUES (?, ?, ?)
+      `).bind(currentUser.id, 'update_conseiller', `Modification du conseiller ID: ${conseillerId}`).run()
+      
+      return c.json({ message: 'Conseiller modifié avec succès' })
+    } else {
+      return c.json({ error: 'Aucune modification fournie' }, 400)
+    }
+  } catch (error) {
+    console.error('Update conseiller error:', error)
+    return c.json({ error: 'Erreur serveur' }, 500)
+  }
+})
+
+// Supprimer un conseiller
+app.delete('/api/users/conseiller/:id', async (c) => {
+  try {
+    const token = c.req.header('Authorization')?.replace('Bearer ', '')
+    if (!token) {
+      return c.json({ error: 'Non autorisé' }, 401)
+    }
+    
+    const currentUser = await verifySession(c.env.DB, token)
+    if (!currentUser || !['chef', 'team_leader'].includes(currentUser.role as string)) {
+      return c.json({ error: 'Accès refusé' }, 403)
+    }
+    
+    const conseillerId = c.req.param('id')
+    
+    // Vérifier que le conseiller existe
+    const conseiller = await c.env.DB.prepare(`
+      SELECT id, full_name FROM users WHERE id = ? AND role = 'conseiller'
+    `).bind(conseillerId).first()
+    
+    if (!conseiller) {
+      return c.json({ error: 'Conseiller non trouvé' }, 404)
+    }
+    
+    // Vérifier qu'il n'a pas de client en cours
+    const activeClient = await c.env.DB.prepare(`
+      SELECT id FROM clients WHERE served_by = ? AND status = 'in_service'
+    `).bind(conseillerId).first()
+    
+    if (activeClient) {
+      return c.json({ error: 'Impossible de supprimer: le conseiller a un client en cours' }, 400)
+    }
+    
+    // Désactiver toutes les sessions du conseiller
+    await c.env.DB.prepare(`
+      UPDATE sessions SET is_active = 0, logout_time = CURRENT_TIMESTAMP 
+      WHERE user_id = ? AND is_active = 1
+    `).bind(conseillerId).run()
+    
+    // Supprimer le conseiller
+    await c.env.DB.prepare(`
+      DELETE FROM users WHERE id = ?
+    `).bind(conseillerId).run()
+    
+    // Log l'activité
+    await c.env.DB.prepare(`
+      INSERT INTO activity_logs (user_id, action, details) VALUES (?, ?, ?)
+    `).bind(currentUser.id, 'delete_conseiller', `Suppression du conseiller: ${conseiller.full_name}`).run()
+    
+    return c.json({ message: 'Conseiller supprimé avec succès' })
+  } catch (error) {
+    console.error('Delete conseiller error:', error)
+    return c.json({ error: 'Erreur serveur' }, 500)
+  }
+})
+
 // ============= GESTION DES CLIENTS =============
 
 // Enregistrer un client (tous les agents)
