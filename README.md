@@ -11,8 +11,39 @@ Application web complète pour la gestion intelligente des files d'attente dans 
 
 ### 🔐 Authentification & Gestion des Rôles
 - **3 niveaux d'accès** : Chef d'agence, Team Leader, Conseiller Client
-- **Gestion des conseillers** : Le Chef et le Team Leader peuvent créer et gérer les comptes conseillers
+- **Gestion complète des conseillers** : Le Chef et le Team Leader peuvent :
+  - ✅ Créer de nouveaux conseillers
+  - ✅ Modifier les informations (nom complet, username, mot de passe)
+  - ✅ Activer/Désactiver les comptes
+  - ✅ Supprimer les conseillers (avec vérifications de sécurité)
 - **Sessions sécurisées** : Authentification par token avec bcrypt
+
+### 👥 Gestion des Conseillers (Chef/Team Leader)
+
+#### Création de Conseillers
+- Formulaire complet : nom complet, username, mot de passe
+- Validation de l'unicité du username
+- Hashage sécurisé des mots de passe (bcrypt)
+- Log automatique des créations
+
+#### Modification de Conseillers
+- **Modal d'édition** avec formulaire pré-rempli
+- Modification du nom complet
+- Changement du username (avec vérification de disponibilité)
+- Réinitialisation du mot de passe (optionnel)
+- Mise à jour en temps réel après modification
+
+#### Suppression de Conseillers
+- **Protection de sécurité** : Impossible de supprimer un conseiller avec client en cours
+- Confirmation obligatoire avant suppression
+- Suppression des sessions associées
+- Conservation de l'historique dans les logs
+- Action irréversible avec message d'avertissement
+
+#### Activation/Désactivation
+- Toggle rapide du statut actif/inactif
+- Les conseillers désactivés ne peuvent plus se connecter
+- État visible par code couleur (vert/rouge)
 
 ### 👥 Gestion des Clients
 
@@ -121,9 +152,13 @@ Conseiller 3 :
 ### Pour le Chef d'Agence / Team Leader
 
 1. **Connexion** avec identifiants admin/teamleader
-2. **Tableau de bord** : Vue d'ensemble des statistiques
-3. **Gestion Conseillers** : Créer/activer/désactiver des conseillers
-4. **Rapports** : Générer des rapports d'activité par période
+2. **Tableau de bord** : Vue d'ensemble des statistiques en temps réel
+3. **Gestion Conseillers** : 
+   - Créer de nouveaux conseillers
+   - Modifier les informations (nom, username, mot de passe)
+   - Activer/Désactiver les comptes
+   - Supprimer des conseillers (avec protections)
+4. **Rapports** : Générer des rapports d'activité par période (jour/semaine/mois/année)
 
 ### Pour les Conseillers Clients
 
@@ -200,6 +235,21 @@ pm2 restart queue-manager    # Redémarrer
 - ✅ Validation des données côté serveur
 - ✅ Protection CORS
 
+## 🎯 Fonctionnalités Complètes
+
+✅ **Chef/Team Leader peuvent créer des conseillers**  
+✅ **Modification complète des conseillers** (nom, username, mot de passe)  
+✅ **Suppression sécurisée des conseillers** (avec vérifications)  
+✅ **Activation/Désactivation des comptes**  
+✅ **Conseillers enregistrés peuvent se connecter**  
+✅ **Tous les agents peuvent enregistrer les clients**  
+✅ **Seuls les conseillers peuvent appeler/traiter**  
+✅ **Système de priorités VIP fonctionnel**  
+✅ **Alertes pour clients VIP en longue attente**  
+✅ **Vue en temps réel de tous les agents connectés**  
+✅ **Rapports d'activité complets**  
+✅ **Monitoring des temps d'attente et de service**  
+
 ## 📈 Améliorations Futures Possibles
 
 1. **Notifications en temps réel** : WebSocket pour mises à jour push
@@ -231,3 +281,19 @@ L'application est prête pour le déploiement sur Cloudflare Pages. Pour déploy
 **Développé avec ❤️ pour la gestion efficace des files d'attente en agence**
 
 *Dernière mise à jour : 15 février 2026*
+
+## 🆕 Changelog
+
+### Version 1.1 - 15 février 2026
+- ✨ Ajout de la modification des conseillers
+- ✨ Ajout de la suppression des conseillers avec vérifications
+- 🎨 Interface améliorée avec modal d'édition
+- 🔒 Protection contre la suppression de conseillers occupés
+- 📝 Logs d'activité pour modification et suppression
+
+### Version 1.0 - 15 février 2026
+- 🎉 Première version complète du système
+- ✅ Authentification multi-rôles
+- ✅ Gestion de file d'attente avec priorités VIP
+- ✅ Tableau de bord temps réel
+- ✅ Système de rapports
