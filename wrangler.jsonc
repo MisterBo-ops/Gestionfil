@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "webapp",
+  "name": "queue-manager",
   "compatibility_date": "2026-02-15",
   "pages_build_output_dir": "./dist",
   "compatibility_flags": [
@@ -9,8 +9,8 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "webapp-production",
-      "database_id": "local-db-for-development"
+      "database_name": "queue-manager-production",
+      "database_id": "0ad389b5-23e4-431a-8970-3c0b9d2906cf"
     }
   ]
 }

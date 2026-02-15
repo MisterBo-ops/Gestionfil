@@ -4,8 +4,10 @@ Application web complète pour la gestion intelligente des files d'attente dans 
 
 ## 🌐 URLs
 
+- **Application Production** : https://queue-manager-44o.pages.dev
 - **Application Sandbox** : https://3000-ix94we9gk7723rdlhgt3m-c07dda5e.sandbox.novita.ai
-- **GitHub** : (À configurer lors du déploiement)
+- **Projet Cloudflare Pages** : https://dash.cloudflare.com (projet: queue-manager)
+- **Base de données D1** : queue-manager-production (ID: 0ad389b5-23e4-431a-8970-3c0b9d2906cf)
 
 ## ✨ Fonctionnalités Principales
 
