@@ -2171,3 +2171,420 @@ function addLanguageSelector() {
   }
 }
 
+
+// ============= GESTION DES PAUSES =============
+
+async function startBreak() {
+  const reason = prompt('Raison de la pause (optionnel):')
+  if (reason === null) return // Annulé
+  
+  try {
+    await apiCall('/breaks/start', {
+      method: 'POST',
+      data: { reason: reason || '' }
+    })
+    showNotification('Pause démarrée', 'info')
+    currentUser.on_break = 1
+    currentUser.is_available = 0
+    renderCurrentClient() // Refresh UI
+  } catch (error) {
+    showNotification(error.response?.data?.error || 'Erreur', 'error')
+  }
+}
+
+async function endBreak() {
+  try {
+    const result = await apiCall('/breaks/end', { method: 'POST' })
+    showNotification(`Pause terminée (${result.duration_minutes} min)`, 'success')
+    currentUser.on_break = 0
+    currentUser.is_available = 1
+    renderQueue() // Refresh UI
+  } catch (error) {
+    showNotification(error.response?.data?.error || 'Erreur', 'error')
+  }
+}
+
+// ============= SYSTÈME DE TICKETS =============
+
+async function showTicket(clientId) {
+  try {
+    const ticketData = await apiCall(`/tickets/${clientId}`)
+    
+    // Créer une modal pour afficher le ticket
+    const modal = document.createElement('div')
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'
+    modal.onclick = () => modal.remove()
+    
+    modal.innerHTML = `
+      <div class="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-xl max-w-md w-full animate-fade-in" onclick="event.stopPropagation()">
+        <div class="text-center">
+          <h2 class="text-2xl font-bold text-yellow-600 mb-4">Ticket MTN</h2>
+          
+          <div class="bg-yellow-50 dark:bg-gray-700 p-6 rounded-lg mb-4">
+            <div class="text-4xl font-bold text-gray-800 dark:text-gray-200 mb-2">
+              ${ticketData.ticket_number}
+            </div>
+            <div class="text-sm text-gray-600 dark:text-gray-400">
+              ${ticketData.client.prenom} ${ticketData.client.nom}
+            </div>
+            <div class="text-xs text-gray-500 dark:text-gray-500 mt-1">
+              ${ticketData.client.type_client}
+            </div>
+          </div>
+          
+          <div class="flex justify-center mb-4">
+            <div id="qrcode-${clientId}" class="bg-white p-2 rounded"></div>
+          </div>
+          
+          <div class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+            ${new Date(ticketData.client.arrival_time).toLocaleString('fr-FR')}
+          </div>
+          
+          <div class="flex gap-2 justify-center">
+            <button onclick="printTicket(${clientId})" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg">
+              <i class="fas fa-print mr-2"></i>Imprimer
+            </button>
+            <button onclick="this.closest('.fixed').remove()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg">
+              Fermer
+            </button>
+          </div>
+        </div>
+      </div>
+    `
+    
+    document.body.appendChild(modal)
+    
+    // Générer le QR code
+    setTimeout(() => {
+      const qrContainer = document.getElementById(`qrcode-${clientId}`)
+      if (qrContainer && typeof QRCode !== 'undefined') {
+        new QRCode(qrContainer, {
+          text: ticketData.qr_code,
+          width: 150,
+          height: 150
+        })
+      }
+    }, 100)
+  } catch (error) {
+    showNotification('Erreur lors de l\'affichage du ticket', 'error')
+  }
+}
+
+function printTicket(clientId) {
+  // Créer une fenêtre d'impression avec le contenu du ticket
+  const ticketElement = document.querySelector('.fixed')
+  if (ticketElement) {
+    const printWindow = window.open('', '_blank', 'width=400,height=600')
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Ticket MTN</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              padding: 20px;
+              text-align: center;
+            }
+            .ticket-number {
+              font-size: 36px;
+              font-weight: bold;
+              color: #FFC800;
+              margin: 20px 0;
+            }
+            .client-info {
+              margin: 10px 0;
+            }
+          </style>
+        </head>
+        <body>
+          ${ticketElement.querySelector('.bg-white.dark\\:bg-gray-800').innerHTML}
+        </body>
+      </html>
+    `)
+    printWindow.document.close()
+    setTimeout(() => {
+      printWindow.print()
+      printWindow.close()
+    }, 500)
+  }
+}
+
+// ============= STATISTIQUES AVANCÉES =============
+
+async function renderAdvancedStatistics() {
+  const startDate = localStorage.getItem('stats_start_date') || ''
+  const endDate = localStorage.getItem('stats_end_date') || ''
+  const selectedConseillers = JSON.parse(localStorage.getItem('stats_conseillers') || '[]')
+  const selectedClientTypes = JSON.parse(localStorage.getItem('stats_client_types') || '[]')
+  
+  // Charger la liste des conseillers pour les filtres
+  const conseillers = await apiCall('/users/conseillers')
+  
+  return `
+    <div class="space-y-6 animate-fade-in">
+      <div class="flex justify-between items-center">
+        <h2 class="text-2xl font-bold text-gray-800 dark:text-white">
+          <i class="fas fa-chart-line mr-2"></i>
+          Statistiques Avancées
+        </h2>
+      </div>
+      
+      <!-- Filtres -->
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">
+          <i class="fas fa-filter mr-2"></i>Filtres
+        </h3>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <!-- Date début -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Date début</label>
+            <input type="date" id="stats-start-date" value="${startDate}" 
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
+          </div>
+          
+          <!-- Date fin -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Date fin</label>
+            <input type="date" id="stats-end-date" value="${endDate}" 
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
+          </div>
+          
+          <!-- Conseillers -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Conseillers</label>
+            <select multiple id="stats-conseillers" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white h-20">
+              ${conseillers.map(c => `
+                <option value="${c.id}" ${selectedConseillers.includes(c.id.toString()) ? 'selected' : ''}>
+                  ${c.full_name}
+                </option>
+              `).join('')}
+            </select>
+          </div>
+          
+          <!-- Types de clients -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Types de clients</label>
+            <select multiple id="stats-client-types" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white h-20">
+              <option value="HVC_OR" ${selectedClientTypes.includes('HVC_OR') ? 'selected' : ''}>VIP Or</option>
+              <option value="HVC_ARGENT" ${selectedClientTypes.includes('HVC_ARGENT') ? 'selected' : ''}>HVC Argent</option>
+              <option value="HVC_BRONZE" ${selectedClientTypes.includes('HVC_BRONZE') ? 'selected' : ''}>HVC Bronze</option>
+              <option value="NON_HVC" ${selectedClientTypes.includes('NON_HVC') ? 'selected' : ''}>Non HVC</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="mt-4 flex gap-2">
+          <button onclick="applyAdvancedFilters()" class="bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-2 rounded-lg font-medium">
+            <i class="fas fa-search mr-2"></i>Appliquer les filtres
+          </button>
+          <button onclick="resetAdvancedFilters()" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-medium">
+            <i class="fas fa-redo mr-2"></i>Réinitialiser
+          </button>
+        </div>
+      </div>
+      
+      <!-- Résultats -->
+      <div id="advanced-stats-results">
+        <div class="text-center text-gray-500 dark:text-gray-400 py-8">
+          <i class="fas fa-chart-bar text-4xl mb-4"></i>
+          <p>Sélectionnez des filtres et cliquez sur "Appliquer" pour voir les statistiques</p>
+        </div>
+      </div>
+    </div>
+  `
+}
+
+async function applyAdvancedFilters() {
+  const startDate = document.getElementById('stats-start-date').value
+  const endDate = document.getElementById('stats-end-date').value
+  const conseillers = Array.from(document.getElementById('stats-conseillers').selectedOptions).map(o => o.value)
+  const clientTypes = Array.from(document.getElementById('stats-client-types').selectedOptions).map(o => o.value)
+  
+  // Sauvegarder les filtres
+  localStorage.setItem('stats_start_date', startDate)
+  localStorage.setItem('stats_end_date', endDate)
+  localStorage.setItem('stats_conseillers', JSON.stringify(conseillers))
+  localStorage.setItem('stats_client_types', JSON.stringify(clientTypes))
+  
+  // Construire l'URL avec paramètres
+  let url = '/statistics/advanced?'
+  if (startDate) url += `start_date=${startDate}&`
+  if (endDate) url += `end_date=${endDate}&`
+  if (conseillers.length > 0) url += `conseillers=${conseillers.join(',')}&`
+  if (clientTypes.length > 0) url += `client_types=${clientTypes.join(',')}&`
+  
+  try {
+    const data = await apiCall(url)
+    displayAdvancedStats(data)
+  } catch (error) {
+    showNotification('Erreur lors du chargement des statistiques', 'error')
+  }
+}
+
+function displayAdvancedStats(data) {
+  const resultsDiv = document.getElementById('advanced-stats-results')
+  
+  resultsDiv.innerHTML = `
+    <div class="space-y-6">
+      <!-- Statistiques par type de client -->
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">
+          <i class="fas fa-users mr-2"></i>Par type de client
+        </h3>
+        <div class="overflow-x-auto">
+          <table class="min-w-full">
+            <thead>
+              <tr class="border-b dark:border-gray-700">
+                <th class="text-left py-2 px-4">Type</th>
+                <th class="text-right py-2 px-4">Total</th>
+                <th class="text-right py-2 px-4">Attente moy.</th>
+                <th class="text-right py-2 px-4">Service moy.</th>
+                <th class="text-right py-2 px-4">Total moy.</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.by_client_type.map(row => `
+                <tr class="border-b dark:border-gray-700">
+                  <td class="py-2 px-4">${row.type_client}</td>
+                  <td class="text-right py-2 px-4">${row.total}</td>
+                  <td class="text-right py-2 px-4">${Math.round(row.avg_waiting || 0)} min</td>
+                  <td class="text-right py-2 px-4">${Math.round(row.avg_service || 0)} min</td>
+                  <td class="text-right py-2 px-4">${Math.round(row.avg_total || 0)} min</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      <!-- Performance détaillée par conseiller -->
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">
+          <i class="fas fa-user-tie mr-2"></i>Performance détaillée des conseillers
+        </h3>
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead>
+              <tr class="border-b dark:border-gray-700">
+                <th class="text-left py-2 px-4">Conseiller</th>
+                <th class="text-right py-2 px-4">Clients</th>
+                <th class="text-right py-2 px-4">VIP</th>
+                <th class="text-right py-2 px-4">Argent</th>
+                <th class="text-right py-2 px-4">Bronze</th>
+                <th class="text-right py-2 px-4">Non-HVC</th>
+                <th class="text-right py-2 px-4">Service moy.</th>
+                <th class="text-right py-2 px-4">Pause total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.conseiller_detailed.map(row => `
+                <tr class="border-b dark:border-gray-700">
+                  <td class="py-2 px-4">${row.full_name}</td>
+                  <td class="text-right py-2 px-4 font-semibold">${row.total_clients || 0}</td>
+                  <td class="text-right py-2 px-4">${row.vip_count || 0}</td>
+                  <td class="text-right py-2 px-4">${row.argent_count || 0}</td>
+                  <td class="text-right py-2 px-4">${row.bronze_count || 0}</td>
+                  <td class="text-right py-2 px-4">${row.non_hvc_count || 0}</td>
+                  <td class="text-right py-2 px-4">${Math.round(row.avg_service || 0)} min</td>
+                  <td class="text-right py-2 px-4">${row.total_break_time_minutes || 0} min</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      <!-- Évolution par jour -->
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold mb-4 text-gray-800 dark:text-white">
+          <i class="fas fa-calendar-alt mr-2"></i>Évolution par jour
+        </h3>
+        <canvas id="chart-by-day" height="80"></canvas>
+      </div>
+    </div>
+  `
+  
+  // Créer le graphique d'évolution par jour
+  setTimeout(() => {
+    const ctx = document.getElementById('chart-by-day')
+    if (ctx && data.stats_by_day.length > 0) {
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: data.stats_by_day.map(d => d.date).reverse(),
+          datasets: [
+            {
+              label: 'Clients traités',
+              data: data.stats_by_day.map(d => d.total_clients).reverse(),
+              borderColor: '#FFC800',
+              backgroundColor: 'rgba(255, 200, 0, 0.1)',
+              yAxisID: 'y'
+            },
+            {
+              label: 'Temps attente (min)',
+              data: data.stats_by_day.map(d => Math.round(d.avg_waiting || 0)).reverse(),
+              borderColor: '#EF4444',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              yAxisID: 'y1'
+            },
+            {
+              label: 'Temps service (min)',
+              data: data.stats_by_day.map(d => Math.round(d.avg_service || 0)).reverse(),
+              borderColor: '#10B981',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              yAxisID: 'y1'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          scales: {
+            y: {
+              type: 'linear',
+              display: true,
+              position: 'left',
+              title: {
+                display: true,
+                text: 'Nombre de clients'
+              }
+            },
+            y1: {
+              type: 'linear',
+              display: true,
+              position: 'right',
+              title: {
+                display: true,
+                text: 'Temps (minutes)'
+              },
+              grid: {
+                drawOnChartArea: false
+              }
+            }
+          }
+        }
+      })
+    }
+  }, 100)
+}
+
+function resetAdvancedFilters() {
+  document.getElementById('stats-start-date').value = ''
+  document.getElementById('stats-end-date').value = ''
+  document.getElementById('stats-conseillers').selectedIndex = -1
+  document.getElementById('stats-client-types').selectedIndex = -1
+  localStorage.removeItem('stats_start_date')
+  localStorage.removeItem('stats_end_date')
+  localStorage.removeItem('stats_conseillers')
+  localStorage.removeItem('stats_client_types')
+  document.getElementById('advanced-stats-results').innerHTML = `
+    <div class="text-center text-gray-500 dark:text-gray-400 py-8">
+      <i class="fas fa-chart-bar text-4xl mb-4"></i>
+      <p>Sélectionnez des filtres et cliquez sur "Appliquer" pour voir les statistiques</p>
+    </div>
+  `
+}

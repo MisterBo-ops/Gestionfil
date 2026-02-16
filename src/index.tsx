@@ -434,21 +434,27 @@ app.post('/api/clients', async (c) => {
     
     const priority = calculatePriority(type_client)
     
+    // Générer le numéro de ticket
+    const ticketNumber = await generateTicketNumber(c.env.DB)
+    const qrCodeData = generateQRCodeData(ticketNumber, { nom, prenom, type_client })
+    
     const result = await c.env.DB.prepare(`
-      INSERT INTO clients (nom, prenom, numero_mtn, second_contact, raison_visite, type_client, priority, registered_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(nom, prenom, numero_mtn, second_contact || null, raison_visite, type_client, priority, currentUser.id).run()
+      INSERT INTO clients (nom, prenom, numero_mtn, second_contact, raison_visite, type_client, priority, registered_by, ticket_number, qr_code)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(nom, prenom, numero_mtn, second_contact || null, raison_visite, type_client, priority, currentUser.id, ticketNumber, qrCodeData).run()
     
     // Log l'activité
     await c.env.DB.prepare(`
       INSERT INTO activity_logs (user_id, action, client_id, details) 
       VALUES (?, ?, ?, ?)
-    `).bind(currentUser.id, 'register_client', result.meta.last_row_id, `Client: ${prenom} ${nom}`).run()
+    `).bind(currentUser.id, 'register_client', result.meta.last_row_id, `Client: ${prenom} ${nom} - Ticket: ${ticketNumber}`).run()
     
     return c.json({ 
       message: 'Client enregistré avec succès',
       client_id: result.meta.last_row_id,
-      priority
+      priority,
+      ticket_number: ticketNumber,
+      qr_code: qrCodeData
     })
   } catch (error) {
     console.error('Register client error:', error)
@@ -941,6 +947,317 @@ app.get('/api/statistics/charts', async (c) => {
   }
 })
 
+// ============= GESTION DES PAUSES =============
+
+// Démarrer une pause
+app.post('/api/breaks/start', async (c) => {
+  const token = c.req.header('Authorization')?.replace('Bearer ', '')
+  if (!token) return c.json({ error: 'Non autorisé' }, 401)
+  
+  try {
+    const user = await verifySession(c.env.DB, token)
+    if (!user) return c.json({ error: 'Session invalide' }, 401)
+    if (user.role !== 'conseiller') return c.json({ error: 'Accès refusé' }, 403)
+    
+    const { reason } = await c.req.json()
+    
+    // Vérifier si le conseiller a un client en service
+    const clientInService = await c.env.DB.prepare(`
+      SELECT id FROM clients WHERE served_by = ? AND status = 'in_service'
+    `).bind(user.id).first()
+    
+    if (clientInService) {
+      return c.json({ error: 'Impossible de prendre une pause avec un client en service' }, 400)
+    }
+    
+    // Marquer le conseiller en pause
+    const now = new Date().toISOString()
+    await c.env.DB.prepare(`
+      UPDATE users SET on_break = 1, break_start_time = ?, is_available = 0 WHERE id = ?
+    `).bind(now, user.id).run()
+    
+    // Enregistrer la pause dans l'historique
+    await c.env.DB.prepare(`
+      INSERT INTO breaks (user_id, break_start, reason) VALUES (?, ?, ?)
+    `).bind(user.id, now, reason || '').run()
+    
+    // Log
+    await c.env.DB.prepare(`
+      INSERT INTO activity_logs (user_id, action, details) VALUES (?, 'break_start', ?)
+    `).bind(user.id, JSON.stringify({ reason })).run()
+    
+    return c.json({ success: true, break_start: now })
+  } catch (error) {
+    console.error('Start break error:', error)
+    return c.json({ error: 'Erreur serveur' }, 500)
+  }
+})
+
+// Terminer une pause
+app.post('/api/breaks/end', async (c) => {
+  const token = c.req.header('Authorization')?.replace('Bearer ', '')
+  if (!token) return c.json({ error: 'Non autorisé' }, 401)
+  
+  try {
+    const user = await verifySession(c.env.DB, token)
+    if (!user) return c.json({ error: 'Session invalide' }, 401)
+    if (user.role !== 'conseiller') return c.json({ error: 'Accès refusé' }, 403)
+    
+    // Récupérer l'heure de début de pause
+    const userData = await c.env.DB.prepare(`
+      SELECT break_start_time, total_break_time_minutes FROM users WHERE id = ?
+    `).bind(user.id).first()
+    
+    if (!userData || !userData.break_start_time) {
+      return c.json({ error: 'Aucune pause en cours' }, 400)
+    }
+    
+    const now = new Date().toISOString()
+    const breakStart = new Date(userData.break_start_time as string)
+    const breakEnd = new Date(now)
+    const durationMinutes = Math.floor((breakEnd.getTime() - breakStart.getTime()) / 60000)
+    
+    // Mettre à jour le conseiller
+    const totalBreakTime = (userData.total_break_time_minutes as number || 0) + durationMinutes
+    await c.env.DB.prepare(`
+      UPDATE users SET on_break = 0, break_start_time = NULL, is_available = 1, total_break_time_minutes = ? WHERE id = ?
+    `).bind(totalBreakTime, user.id).run()
+    
+    // Mettre à jour l'historique de pause
+    await c.env.DB.prepare(`
+      UPDATE breaks SET break_end = ?, duration_minutes = ? WHERE user_id = ? AND break_end IS NULL
+    `).bind(now, durationMinutes, user.id).run()
+    
+    // Log
+    await c.env.DB.prepare(`
+      INSERT INTO activity_logs (user_id, action, details) VALUES (?, 'break_end', ?)
+    `).bind(user.id, JSON.stringify({ duration_minutes: durationMinutes })).run()
+    
+    return c.json({ success: true, duration_minutes: durationMinutes })
+  } catch (error) {
+    console.error('End break error:', error)
+    return c.json({ error: 'Erreur serveur' }, 500)
+  }
+})
+
+// Obtenir les pauses d'un conseiller
+app.get('/api/breaks/history', async (c) => {
+  const token = c.req.header('Authorization')?.replace('Bearer ', '')
+  if (!token) return c.json({ error: 'Non autorisé' }, 401)
+  
+  try {
+    const user = await verifySession(c.env.DB, token)
+    if (!user) return c.json({ error: 'Session invalide' }, 401)
+    
+    const userId = c.req.query('user_id') || user.id
+    
+    // Vérifier les permissions
+    if (user.role === 'conseiller' && userId !== user.id.toString()) {
+      return c.json({ error: 'Accès refusé' }, 403)
+    }
+    
+    const breaks = await c.env.DB.prepare(`
+      SELECT * FROM breaks WHERE user_id = ? ORDER BY break_start DESC LIMIT 50
+    `).bind(userId).all()
+    
+    return c.json({ breaks: breaks.results })
+  } catch (error) {
+    console.error('Get breaks error:', error)
+    return c.json({ error: 'Erreur serveur' }, 500)
+  }
+})
+
+// ============= SYSTÈME DE TICKETS =============
+
+// Générer un numéro de ticket
+async function generateTicketNumber(db: D1Database): Promise<string> {
+  const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD
+  
+  // Obtenir ou créer le compteur du jour
+  let counter = await db.prepare(`
+    SELECT counter FROM ticket_counters WHERE date = ?
+  `).bind(today).first()
+  
+  if (!counter) {
+    // Créer un nouveau compteur pour aujourd'hui
+    await db.prepare(`
+      INSERT INTO ticket_counters (date, counter) VALUES (?, 1)
+    `).bind(today).run()
+    return `${today.replace(/-/g, '')}-001` // Ex: 20260216-001
+  }
+  
+  // Incrémenter le compteur
+  const newCounter = (counter.counter as number) + 1
+  await db.prepare(`
+    UPDATE ticket_counters SET counter = ? WHERE date = ?
+  `).bind(newCounter, today).run()
+  
+  return `${today.replace(/-/g, '')}-${String(newCounter).padStart(3, '0')}`
+}
+
+// Générer le contenu QR code (simple texte pour l'instant)
+function generateQRCodeData(ticketNumber: string, clientInfo: any): string {
+  return JSON.stringify({
+    ticket: ticketNumber,
+    nom: clientInfo.nom,
+    prenom: clientInfo.prenom,
+    type: clientInfo.type_client,
+    time: new Date().toISOString()
+  })
+}
+
+// Obtenir le ticket d'un client
+app.get('/api/tickets/:clientId', async (c) => {
+  const token = c.req.header('Authorization')?.replace('Bearer ', '')
+  if (!token) return c.json({ error: 'Non autorisé' }, 401)
+  
+  try {
+    const user = await verifySession(c.env.DB, token)
+    if (!user) return c.json({ error: 'Session invalide' }, 401)
+    
+    const clientId = c.req.param('clientId')
+    
+    const client = await c.env.DB.prepare(`
+      SELECT * FROM clients WHERE id = ?
+    `).bind(clientId).first()
+    
+    if (!client) return c.json({ error: 'Client non trouvé' }, 404)
+    
+    return c.json({
+      ticket_number: client.ticket_number,
+      qr_code: client.qr_code,
+      client: {
+        nom: client.nom,
+        prenom: client.prenom,
+        type_client: client.type_client,
+        arrival_time: client.arrival_time
+      }
+    })
+  } catch (error) {
+    console.error('Get ticket error:', error)
+    return c.json({ error: 'Erreur serveur' }, 500)
+  }
+})
+
+// ============= STATISTIQUES AVANCÉES =============
+
+// Statistiques avancées avec filtres personnalisés
+app.get('/api/statistics/advanced', async (c) => {
+  const token = c.req.header('Authorization')?.replace('Bearer ', '')
+  if (!token) return c.json({ error: 'Non autorisé' }, 401)
+  
+  try {
+    const user = await verifySession(c.env.DB, token)
+    if (!user) return c.json({ error: 'Session invalide' }, 401)
+    if (user.role !== 'chef' && user.role !== 'team_leader') {
+      return c.json({ error: 'Accès refusé' }, 403)
+    }
+    
+    const startDate = c.req.query('start_date') // YYYY-MM-DD
+    const endDate = c.req.query('end_date') // YYYY-MM-DD
+    const conseillers = c.req.query('conseillers')?.split(',') // IDs séparés par virgule
+    const clientTypes = c.req.query('client_types')?.split(',') // Types séparés par virgule
+    
+    let dateFilter = "DATE(created_at) >= DATE('now', '-30 days')"
+    if (startDate && endDate) {
+      dateFilter = `DATE(created_at) BETWEEN '${startDate}' AND '${endDate}'`
+    }
+    
+    let conseillerFilter = ""
+    if (conseillers && conseillers.length > 0) {
+      conseillerFilter = `AND served_by IN (${conseillers.join(',')})`
+    }
+    
+    let clientTypeFilter = ""
+    if (clientTypes && clientTypes.length > 0) {
+      const types = clientTypes.map(t => `'${t}'`).join(',')
+      clientTypeFilter = `AND type_client IN (${types})`
+    }
+    
+    // Statistiques par jour
+    const statsByDay = await c.env.DB.prepare(`
+      SELECT 
+        DATE(created_at) as date,
+        COUNT(*) as total_clients,
+        AVG(waiting_time_minutes) as avg_waiting,
+        AVG(service_time_minutes) as avg_service,
+        AVG(total_time_minutes) as avg_total,
+        MIN(waiting_time_minutes) as min_waiting,
+        MAX(waiting_time_minutes) as max_waiting,
+        MIN(service_time_minutes) as min_service,
+        MAX(service_time_minutes) as max_service
+      FROM clients
+      WHERE status = 'completed' AND ${dateFilter} ${conseillerFilter} ${clientTypeFilter}
+      GROUP BY DATE(created_at)
+      ORDER BY date DESC
+    `).all()
+    
+    // Comparaison par type de client
+    const byClientType = await c.env.DB.prepare(`
+      SELECT 
+        type_client,
+        COUNT(*) as total,
+        AVG(waiting_time_minutes) as avg_waiting,
+        AVG(service_time_minutes) as avg_service,
+        AVG(total_time_minutes) as avg_total
+      FROM clients
+      WHERE status = 'completed' AND ${dateFilter} ${conseillerFilter} ${clientTypeFilter}
+      GROUP BY type_client
+    `).all()
+    
+    // Performance détaillée par conseiller
+    const conseillerDetailed = await c.env.DB.prepare(`
+      SELECT 
+        u.id,
+        u.full_name,
+        COUNT(c.id) as total_clients,
+        AVG(c.waiting_time_minutes) as avg_waiting,
+        AVG(c.service_time_minutes) as avg_service,
+        AVG(c.total_time_minutes) as avg_total,
+        MIN(c.service_time_minutes) as min_service,
+        MAX(c.service_time_minutes) as max_service,
+        u.total_break_time_minutes,
+        SUM(CASE WHEN c.type_client = 'HVC_OR' THEN 1 ELSE 0 END) as vip_count,
+        SUM(CASE WHEN c.type_client = 'HVC_ARGENT' THEN 1 ELSE 0 END) as argent_count,
+        SUM(CASE WHEN c.type_client = 'HVC_BRONZE' THEN 1 ELSE 0 END) as bronze_count,
+        SUM(CASE WHEN c.type_client = 'NON_HVC' THEN 1 ELSE 0 END) as non_hvc_count
+      FROM users u
+      LEFT JOIN clients c ON c.served_by = u.id AND c.status = 'completed' AND ${dateFilter} ${clientTypeFilter}
+      WHERE u.role = 'conseiller' ${conseillers ? `AND u.id IN (${conseillers.join(',')})` : ''}
+      GROUP BY u.id
+    `).all()
+    
+    // Temps de pause par conseiller
+    const breakStats = await c.env.DB.prepare(`
+      SELECT 
+        user_id,
+        COUNT(*) as total_breaks,
+        SUM(duration_minutes) as total_break_minutes,
+        AVG(duration_minutes) as avg_break_duration
+      FROM breaks
+      WHERE ${dateFilter.replace('created_at', 'break_start')}
+      ${conseillers ? `AND user_id IN (${conseillers.join(',')})` : ''}
+      GROUP BY user_id
+    `).all()
+    
+    return c.json({
+      stats_by_day: statsByDay.results,
+      by_client_type: byClientType.results,
+      conseiller_detailed: conseillerDetailed.results,
+      break_stats: breakStats.results,
+      filters: {
+        start_date: startDate,
+        end_date: endDate,
+        conseillers,
+        client_types: clientTypes
+      }
+    })
+  } catch (error) {
+    console.error('Advanced statistics error:', error)
+    return c.json({ error: 'Erreur serveur' }, 500)
+  }
+})
+
 // ============= PAGE PRINCIPALE =============
 
 app.get('/', (c) => {
@@ -1025,6 +1342,8 @@ app.get('/', (c) => {
         <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+        <!-- QR Code Generator -->
+        <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     </head>
     <body class="bg-gray-100">
         <div id="app"></div>
