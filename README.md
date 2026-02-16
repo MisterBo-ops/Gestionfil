@@ -4,7 +4,7 @@ Application web complète pour la gestion intelligente des files d'attente dans 
 
 ## 🌐 URLs
 
-- **Application Production v2.2** : https://56f14d8b.queue-manager-44o.pages.dev
+- **Application Production v2.3** : https://3991b9f9.queue-manager-44o.pages.dev
 - **URL Alternative** : https://queue-manager-44o.pages.dev
 - **Dépôt GitHub** : https://github.com/MisterBo-ops/Gestionfil
 - **Application Sandbox** : https://3000-ix94we9gk7723rdlhgt3m-c07dda5e.sandbox.novita.ai
@@ -309,6 +309,48 @@ Application web complète pour la gestion intelligente des files d'attente dans 
 - **Process Manager** : PM2 (développement)
 
 ## 📅 Historique des Versions
+
+### Version 2.3 - Pack Gestion (16 février 2026)
+- 🎫 **Système de Tickets avec QR Codes**
+  - Numéro de ticket automatique (format: YYYYMMDD-NNN, ex: 20260216-001)
+  - QR Code généré pour chaque client (JSON avec infos client)
+  - Modal d'affichage de ticket avec design MTN
+  - Fonction d'impression de ticket
+  - Compteur quotidien automatique réinitialisé chaque jour
+  - API GET /api/tickets/:clientId
+  - Bibliothèque QRCode.js 1.0.0 via CDN
+- ⏸️ **Gestion des Pauses Conseillers**
+  - Bouton Pause/Reprendre dans l'interface conseiller
+  - Historique complet des pauses avec durée
+  - Blocage automatique si client en service
+  - Suivi du temps de pause total par conseiller
+  - API POST /api/breaks/start (avec raison optionnelle)
+  - API POST /api/breaks/end (calcul automatique durée)
+  - API GET /api/breaks/history
+  - Table `breaks` pour historique
+- 📊 **Statistiques Avancées avec Filtres Personnalisés**
+  - Filtres par dates (date début/fin)
+  - Filtres par conseillers (multi-sélection)
+  - Filtres par types de clients (VIP/HVC/Non-HVC)
+  - Statistiques par jour avec graphique d'évolution (Chart.js dual-axis)
+  - Performance détaillée par conseiller (breakdown VIP/Argent/Bronze/Non-HVC)
+  - Temps de pause inclus dans les statistiques
+  - Comparaison par type de client (temps attente/service/total)
+  - API GET /api/statistics/advanced avec paramètres de filtrage
+- 🗄️ **Base de Données**
+  - Migration 0003_tickets_and_pauses.sql appliquée
+  - Colonnes ajoutées : ticket_number, qr_code, on_break, break_start_time, total_break_time_minutes
+  - Table breaks (id, user_id, break_start, break_end, duration_minutes, reason, created_at)
+  - Table ticket_counters (id, date, counter, created_at) pour compteurs quotidiens
+  - Index optimisés : idx_breaks_user_id, idx_breaks_date
+- 🔧 **Améliorations Techniques**
+  - Fonction generateTicketNumber() avec compteur auto-incrémenté
+  - Fonction generateQRCodeData() pour JSON structuré
+  - +300 lignes de routes API (tickets, pauses, stats avancées)
+  - +500 lignes de code UI (showTicket, printTicket, renderAdvancedStatistics)
+  - Chart.js multi-datasets avec double axe Y
+  - dist/_worker.js : 81.83 kB (optimisé)
+- 📦 Déploiement: https://3991b9f9.queue-manager-44o.pages.dev
 
 ### Version 2.2 - Pack Expérience (16 février 2026)
 - 📱 **PWA (Progressive Web App)** : Installation sur mobile et desktop
