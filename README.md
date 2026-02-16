@@ -4,7 +4,8 @@ Application web complète pour la gestion intelligente des files d'attente dans 
 
 ## 🌐 URLs
 
-- **Application Production** : https://queue-manager-44o.pages.dev
+- **Application Production** : https://8ae4f1af.queue-manager-44o.pages.dev
+- **URL Alternative** : https://queue-manager-44o.pages.dev
 - **Dépôt GitHub** : https://github.com/MisterBo-ops/Gestionfil
 - **Application Sandbox** : https://3000-ix94we9gk7723rdlhgt3m-c07dda5e.sandbox.novita.ai
 - **Projet Cloudflare Pages** : https://dash.cloudflare.com (projet: queue-manager)
@@ -222,6 +223,31 @@ Conseiller 3 :
 - **Authentification** : JWT + bcrypt
 - **Déploiement** : Cloudflare Pages
 - **Process Manager** : PM2 (développement)
+
+## 📅 Historique des Versions
+
+### Version 2.0 - Statistiques Interactives (16 février 2026)
+- ✨ **Nouveau module de statistiques** avec 4 graphiques interactifs Chart.js
+- 📊 Performance des conseillers (bar chart)
+- 🥧 Répartition par type de client (pie chart)
+- 📈 Affluence par heure (bar chart)
+- 📉 Évolution des temps d'attente et service (line chart)
+- 🎯 Sélecteur de période (jour, semaine, mois, année)
+- 💎 Cartes de statistiques globales avec design moderne
+- 🔧 Correction du binding de base de données
+- 📦 Déploiement: https://8ae4f1af.queue-manager-44o.pages.dev
+
+### Version 1.1 - Gestion Complète des Conseillers (15 février 2026)
+- ✏️ Modification des conseillers (nom, username, mot de passe)
+- 🗑️ Suppression des conseillers avec sécurités
+- 🔄 Interface réorganisée avec 3 actions par conseiller
+
+### Version 1.0 - Version Initiale (15 février 2026)
+- 🔐 Authentification multi-rôles
+- 👥 Enregistrement et gestion des clients
+- 📋 File d'attente intelligente avec priorités
+- ⏱️ Monitoring temps réel
+- 📈 Rapports d'activité
 
 ## 📝 Commandes Utiles
 
