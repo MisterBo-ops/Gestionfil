@@ -163,29 +163,26 @@ Application web complète pour la gestion intelligente des files d'attente dans 
 - Traçabilité de toutes les actions
 - Base pour les rapports
 
-## 👤 Comptes de Test
+## 👤 Comptes de Production
 
-```
-Chef d'Agence :
-- Username : admin
-- Password : admin123
+**⚠️ IMPORTANT** : Les mots de passe de production ont été changés le **16 février 2026** pour des raisons de sécurité.
 
-Team Leader :
-- Username : teamleader
-- Password : team123
+**Pour obtenir les identifiants de production** :
+- Consultez le fichier `CREDENTIALS.md` (non versionné sur GitHub pour des raisons de sécurité)
+- Ou contactez l'administrateur système
 
-Conseiller 1 :
-- Username : conseiller1
-- Password : conseil123
+### Comptes disponibles :
 
-Conseiller 2 :
-- Username : conseiller2
-- Password : conseil123
+**Chef d'Agence** (admin)
+- Accès complet : Dashboard, Statistiques, Gestion Conseillers, Rapports, File d'attente
 
-Conseiller 3 :
-- Username : conseiller3
-- Password : conseil123
-```
+**Team Leader** (teamleader)
+- Accès : Dashboard, Statistiques, Gestion Conseillers, Rapports, File d'attente
+
+**Conseillers Clients** (conseiller1, conseiller2, conseiller3)
+- Accès : File d'attente, Client actuel
+
+> 🔒 **Sécurité** : Les mots de passe sont hashés avec bcrypt et stockés de manière sécurisée dans la base de données D1.
 
 ## 🚀 Guide d'Utilisation
 
@@ -235,6 +232,7 @@ Conseiller 3 :
 - 🎯 Sélecteur de période (jour, semaine, mois, année)
 - 💎 Cartes de statistiques globales avec design moderne
 - 🔧 Correction du binding de base de données
+- 🔐 **Changement sécurisé des mots de passe de production**
 - 📦 Déploiement: https://8ae4f1af.queue-manager-44o.pages.dev
 
 ### Version 1.1 - Gestion Complète des Conseillers (15 février 2026)
