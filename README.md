@@ -95,6 +95,42 @@ Application web complète pour la gestion intelligente des files d'attente dans 
 - **Performance par conseiller** : Nombre de clients servis, temps moyens
 - **Répartition par type de client** : VIP, HVC, Non-HVC
 
+### 📊 Statistiques Visuelles (Graphiques Interactifs)
+
+**Nouveau module Chart.js** avec 4 types de graphiques interactifs :
+
+#### 📉 Graphiques Disponibles
+1. **Performance des Conseillers** (Bar Chart)
+   - Nombre de clients servis par conseiller
+   - Comparaison visuelle des performances
+   - Identification rapide des conseillers les plus actifs
+
+2. **Répartition par Type de Client** (Pie Chart)
+   - Distribution HVC Or, HVC Argent, HVC Bronze, Non-HVC
+   - Pourcentages visuels
+   - Couleurs distinctives pour chaque catégorie
+
+3. **Affluence par Heure** (Bar Chart)
+   - Nombre de clients par tranche horaire (0h-23h)
+   - Identification des heures de pointe
+   - Optimisation de la planification des équipes
+
+4. **Évolution des Temps** (Line Chart)
+   - Temps d'attente moyen par jour
+   - Temps de service moyen par jour
+   - Tendances sur la période sélectionnée
+
+#### 🎯 Fonctionnalités
+- **Sélecteur de période** : Jour / Semaine / Mois / Année
+- **Cartes de statistiques globales** :
+  - Total clients traités
+  - Temps d'attente moyen
+  - Temps de service moyen
+  - Temps total moyen
+- **Graphiques réactifs et interactifs** (zoom, hover, tooltips)
+- **Design moderne** avec cartes colorées en dégradé
+- **Mise à jour automatique** lors du changement de période
+
 ### ⏱️ Monitoring & Alertes
 
 - **Calcul automatique** des temps d'attente et de service
@@ -182,6 +218,7 @@ Conseiller 3 :
 - **Backend** : Hono (framework edge léger)
 - **Base de données** : Cloudflare D1 (SQLite distribué)
 - **Frontend** : HTML/CSS/JS avec TailwindCSS
+- **Graphiques** : Chart.js 4.4.0 (statistiques interactives)
 - **Authentification** : JWT + bcrypt
 - **Déploiement** : Cloudflare Pages
 - **Process Manager** : PM2 (développement)
