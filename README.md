@@ -4,7 +4,7 @@ Application web complète pour la gestion intelligente des files d'attente dans 
 
 ## 🌐 URLs
 
-- **Application Production** : https://642741b4.queue-manager-44o.pages.dev
+- **Application Production v2.2** : https://56f14d8b.queue-manager-44o.pages.dev
 - **URL Alternative** : https://queue-manager-44o.pages.dev
 - **Dépôt GitHub** : https://github.com/MisterBo-ops/Gestionfil
 - **Application Sandbox** : https://3000-ix94we9gk7723rdlhgt3m-c07dda5e.sandbox.novita.ai
@@ -12,6 +12,31 @@ Application web complète pour la gestion intelligente des files d'attente dans 
 - **Base de données D1** : queue-manager-production (ID: 0ad389b5-23e4-431a-8970-3c0b9d2906cf)
 
 ## ✨ Fonctionnalités Principales
+
+### 📱 PWA & Expérience Utilisateur
+
+#### Progressive Web App (PWA)
+- **Installation** : Application installable sur mobile et desktop
+- **Mode Offline** : Service Worker avec cache pour fonctionnement hors ligne
+- **Icônes** : Design MTN personnalisé (jaune #FFC800 + logo Q)
+- **Shortcuts** : Accès rapide au Dashboard, File d'attente, Statistiques
+- **Manifest** : Métadonnées complètes pour app stores
+
+#### Système Multilingue (i18n)
+- **Langues supportées** : Français 🇫🇷 et Anglais 🇬🇧
+- **Sélecteur** : Widget dans la navigation avec drapeau
+- **Traductions complètes** : Interface, menus, messages, boutons
+- **Sauvegarde** : Préférence de langue stockée en localStorage
+- **Switch instantané** : Changement de langue sans rechargement
+
+#### UI/UX Avancée
+- **Animations CSS** : fade-in, slide-up, bounce, shake, glow
+- **Mode sombre** : Toggle avec sauvegarde de préférence
+- **Effets hover** : Cartes avec lift et ombre au survol
+- **Skeleton loading** : Chargement visuel pendant les requêtes
+- **Notifications** : Toast animés + Alertes sonores VIP
+- **Scrollbar** : Style personnalisé aux couleurs MTN
+- **Accessibilité** : Focus visible, contrastes, navigation clavier
 
 ### 🔐 Authentification & Gestion des Rôles
 - **3 niveaux d'accès** : Chef d'agence, Team Leader, Conseiller Client
@@ -284,6 +309,31 @@ Application web complète pour la gestion intelligente des files d'attente dans 
 - **Process Manager** : PM2 (développement)
 
 ## 📅 Historique des Versions
+
+### Version 2.2 - Pack Expérience (16 février 2026)
+- 📱 **PWA (Progressive Web App)** : Installation sur mobile et desktop
+  - manifest.json avec métadonnées complètes MTN Queue Manager
+  - Service Worker avec stratégie cache offline
+  - Icônes SVG 192x192 et 512x512 au design MTN (jaune + noir + Q)
+  - Shortcuts vers Dashboard, Queue, Statistiques
+- 🌍 **Système Multilingue (i18n)** : Français et Anglais
+  - Sélecteur de langue dans la navigation
+  - Traductions complètes (nav, login, dashboard, queue, reports, common)
+  - Sauvegarde de la préférence dans localStorage
+- 🎨 **UI/UX Améliorée** : +230 lignes CSS d'animations
+  - Animations avancées : fade-in, slide-up, bounce, shake, glow
+  - Effets hover sur cartes avec shadow et lift
+  - Skeleton loading animé pour les chargements
+  - Scrollbar personnalisée avec style MTN
+  - Badge de notification animé
+  - Focus visible pour l'accessibilité
+  - Bouton gradient animé
+  - Amélioration des inputs (scale + shadow au focus)
+- 🔧 **Améliorations techniques**
+  - Routes PWA : /manifest.json et /sw.js
+  - Cache strategy : network-first puis cache fallback
+  - +150 lignes de code i18n dans app.js
+- 📦 Déploiement: https://56f14d8b.queue-manager-44o.pages.dev
 
 ### Version 2.1 - Pack Productivité (16 février 2026)
 - 📄 **Export de rapports** : PDF (jsPDF), Excel (SheetJS), CSV
