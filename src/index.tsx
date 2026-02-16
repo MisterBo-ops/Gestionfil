@@ -828,6 +828,115 @@ app.get('/api/reports', async (c) => {
   }
 })
 
+// ============= STATISTIQUES GRAPHIQUES =============
+
+// Statistiques pour graphiques
+app.get('/api/statistics/charts', async (c) => {
+  try {
+    const token = c.req.header('Authorization')?.replace('Bearer ', '')
+    if (!token) {
+      return c.json({ error: 'Non autorisé' }, 401)
+    }
+    
+    const currentUser = await verifySession(c.env.DB, token)
+    if (!currentUser || !['chef', 'team_leader'].includes(currentUser.role as string)) {
+      return c.json({ error: 'Accès refusé' }, 403)
+    }
+    
+    const period = c.req.query('period') || 'day'
+    
+    let dateFilter = ''
+    switch(period) {
+      case 'day':
+        dateFilter = "DATE(arrival_time) = DATE('now')"
+        break
+      case 'week':
+        dateFilter = "DATE(arrival_time) >= DATE('now', '-7 days')"
+        break
+      case 'month':
+        dateFilter = "DATE(arrival_time) >= DATE('now', 'start of month')"
+        break
+      case 'year':
+        dateFilter = "DATE(arrival_time) >= DATE('now', 'start of year')"
+        break
+    }
+    
+    // 1. Clients par heure (pour graphique bar)
+    const byHour = await c.env.DB.prepare(`
+      SELECT 
+        CAST(strftime('%H', arrival_time) AS INTEGER) as hour,
+        COUNT(*) as count
+      FROM clients
+      WHERE status = 'completed' AND ${dateFilter}
+      GROUP BY hour
+      ORDER BY hour
+    `).all()
+    
+    // 2. Performance conseillers (pour graphique bar)
+    const conseillerPerf = await c.env.DB.prepare(`
+      SELECT 
+        u.full_name,
+        COUNT(c.id) as clients_count,
+        AVG(c.service_time_minutes) as avg_service_time,
+        AVG(c.waiting_time_minutes) as avg_waiting_time
+      FROM clients c
+      INNER JOIN users u ON c.served_by = u.id
+      WHERE c.status = 'completed' AND ${dateFilter}
+      GROUP BY u.id, u.full_name
+      ORDER BY clients_count DESC
+      LIMIT 10
+    `).all()
+    
+    // 3. Répartition par type de client (pour pie chart)
+    const byClientType = await c.env.DB.prepare(`
+      SELECT 
+        type_client,
+        COUNT(*) as count
+      FROM clients
+      WHERE status = 'completed' AND ${dateFilter}
+      GROUP BY type_client
+    `).all()
+    
+    // 4. Évolution des temps d'attente par jour (pour line chart)
+    const waitingTrend = await c.env.DB.prepare(`
+      SELECT 
+        DATE(arrival_time) as date,
+        AVG(waiting_time_minutes) as avg_waiting,
+        AVG(service_time_minutes) as avg_service,
+        COUNT(*) as count
+      FROM clients
+      WHERE status = 'completed' AND ${dateFilter}
+      GROUP BY date
+      ORDER BY date
+    `).all()
+    
+    // 5. Statistiques globales
+    const globalStats = await c.env.DB.prepare(`
+      SELECT 
+        COUNT(*) as total_clients,
+        AVG(waiting_time_minutes) as avg_waiting,
+        AVG(service_time_minutes) as avg_service,
+        AVG(total_time_minutes) as avg_total,
+        MAX(waiting_time_minutes) as max_waiting,
+        MIN(waiting_time_minutes) as min_waiting
+      FROM clients
+      WHERE status = 'completed' AND ${dateFilter}
+    `).first()
+    
+    return c.json({
+      period,
+      by_hour: byHour.results,
+      conseiller_performance: conseillerPerf.results,
+      by_client_type: byClientType.results,
+      waiting_trend: waitingTrend.results,
+      global_stats: globalStats
+    })
+  } catch (error) {
+    console.error('Get statistics error:', error)
+    return c.json({ error: 'Erreur serveur' }, 500)
+  }
+})
+
 // ============= PAGE PRINCIPALE =============
 
 app.get('/', (c) => {
@@ -841,6 +950,7 @@ app.get('/', (c) => {
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/dayjs.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/plugin/relativeTime.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/locale/fr.js"></script>

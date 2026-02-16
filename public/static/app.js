@@ -209,6 +209,10 @@ function renderNavigation() {
               class="tab-button py-4 px-2 border-b-2 font-medium text-sm">
               <i class="fas fa-chart-line mr-2"></i>Tableau de bord
             </button>
+            <button onclick="switchTab('statistics')" data-tab="statistics" 
+              class="tab-button py-4 px-2 border-b-2 font-medium text-sm">
+              <i class="fas fa-chart-bar mr-2"></i>Statistiques
+            </button>
             <button onclick="switchTab('queue')" data-tab="queue" 
               class="tab-button py-4 px-2 border-b-2 font-medium text-sm">
               <i class="fas fa-list mr-2"></i>File d'attente
@@ -819,6 +823,296 @@ async function renderReports() {
   }
 }
 
+// ============= STATISTIQUES GRAPHIQUES =============
+
+let chartsInstances = {} // Stocker les instances de graphiques pour les détruire lors du changement
+
+async function renderStatistics() {
+  const period = localStorage.getItem('statisticsPeriod') || 'week'
+  
+  try {
+    const data = await apiCall(`/statistics/charts?period=${period}`)
+    
+    const periodLabels = {
+      day: "Aujourd'hui",
+      week: 'Cette semaine',
+      month: 'Ce mois',
+      year: 'Cette année'
+    }
+    
+    return `
+      <div class="space-y-6">
+        <!-- Sélecteur de période -->
+        <div class="bg-white rounded-lg shadow p-6">
+          <div class="flex items-center justify-between">
+            <h2 class="text-xl font-bold text-gray-800">
+              <i class="fas fa-chart-bar mr-2"></i>Statistiques Visuelles - ${periodLabels[period]}
+            </h2>
+            <div class="flex space-x-2">
+              <button onclick="changeStatsPeriod('day')" 
+                class="px-4 py-2 rounded-lg transition ${period === 'day' ? 'bg-yellow-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}">
+                Jour
+              </button>
+              <button onclick="changeStatsPeriod('week')" 
+                class="px-4 py-2 rounded-lg transition ${period === 'week' ? 'bg-yellow-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}">
+                Semaine
+              </button>
+              <button onclick="changeStatsPeriod('month')" 
+                class="px-4 py-2 rounded-lg transition ${period === 'month' ? 'bg-yellow-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}">
+                Mois
+              </button>
+              <button onclick="changeStatsPeriod('year')" 
+                class="px-4 py-2 rounded-lg transition ${period === 'year' ? 'bg-yellow-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}">
+                Année
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Statistiques globales en cartes -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow p-6 text-white">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm opacity-90">Total Clients</p>
+                <p class="text-4xl font-bold">${data.global_stats?.total_clients || 0}</p>
+              </div>
+              <i class="fas fa-users text-5xl opacity-20"></i>
+            </div>
+          </div>
+          
+          <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow p-6 text-white">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm opacity-90">Temps Attente Moy</p>
+                <p class="text-4xl font-bold">${Math.round(data.global_stats?.avg_waiting || 0)}<span class="text-lg">min</span></p>
+              </div>
+              <i class="fas fa-clock text-5xl opacity-20"></i>
+            </div>
+          </div>
+          
+          <div class="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow p-6 text-white">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm opacity-90">Temps Service Moy</p>
+                <p class="text-4xl font-bold">${Math.round(data.global_stats?.avg_service || 0)}<span class="text-lg">min</span></p>
+              </div>
+              <i class="fas fa-hourglass-half text-5xl opacity-20"></i>
+            </div>
+          </div>
+          
+          <div class="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg shadow p-6 text-white">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm opacity-90">Temps Total Moy</p>
+                <p class="text-4xl font-bold">${Math.round(data.global_stats?.avg_total || 0)}<span class="text-lg">min</span></p>
+              </div>
+              <i class="fas fa-stopwatch text-5xl opacity-20"></i>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Graphiques -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Graphique 1: Performance des conseillers -->
+          <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">
+              <i class="fas fa-user-tie text-blue-500 mr-2"></i>Performance des Conseillers
+            </h3>
+            <canvas id="conseillerPerfChart"></canvas>
+          </div>
+          
+          <!-- Graphique 2: Répartition par type de client -->
+          <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">
+              <i class="fas fa-pie-chart text-green-500 mr-2"></i>Répartition par Type de Client
+            </h3>
+            <canvas id="clientTypeChart"></canvas>
+          </div>
+          
+          <!-- Graphique 3: Affluence par heure -->
+          <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">
+              <i class="fas fa-chart-area text-purple-500 mr-2"></i>Affluence par Heure
+            </h3>
+            <canvas id="hourlyChart"></canvas>
+          </div>
+          
+          <!-- Graphique 4: Évolution des temps d'attente -->
+          <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">
+              <i class="fas fa-chart-line text-orange-500 mr-2"></i>Évolution des Temps
+            </h3>
+            <canvas id="waitingTrendChart"></canvas>
+          </div>
+        </div>
+      </div>
+    `
+  } catch (error) {
+    console.error('Statistics error:', error)
+    return `<div class="bg-red-100 text-red-800 p-4 rounded-lg">Erreur de chargement des statistiques</div>`
+  }
+}
+
+// Fonction pour initialiser les graphiques Chart.js
+async function initializeCharts() {
+  const period = localStorage.getItem('statisticsPeriod') || 'week'
+  
+  try {
+    const data = await apiCall(`/statistics/charts?period=${period}`)
+    
+    // Détruire les anciens graphiques s'ils existent
+    Object.values(chartsInstances).forEach(chart => chart && chart.destroy())
+    chartsInstances = {}
+    
+    // 1. Graphique Performance Conseillers (Bar Chart)
+    const conseillerCtx = document.getElementById('conseillerPerfChart')
+    if (conseillerCtx) {
+      chartsInstances.conseiller = new Chart(conseillerCtx, {
+        type: 'bar',
+        data: {
+          labels: data.conseiller_performance.map(c => c.full_name),
+          datasets: [{
+            label: 'Clients Servis',
+            data: data.conseiller_performance.map(c => c.clients_count),
+            backgroundColor: 'rgba(59, 130, 246, 0.8)',
+            borderColor: 'rgb(59, 130, 246)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: true },
+            title: { display: false }
+          },
+          scales: {
+            y: { beginAtZero: true, ticks: { precision: 0 } }
+          }
+        }
+      })
+    }
+    
+    // 2. Graphique Type de Client (Pie Chart)
+    const clientTypeCtx = document.getElementById('clientTypeChart')
+    if (clientTypeCtx) {
+      const typeLabels = {
+        'HVC_OR': 'HVC Or (VIP)',
+        'HVC_ARGENT': 'HVC Argent',
+        'HVC_BRONZE': 'HVC Bronze',
+        'NON_HVC': 'Non-HVC'
+      }
+      
+      chartsInstances.clientType = new Chart(clientTypeCtx, {
+        type: 'pie',
+        data: {
+          labels: data.by_client_type.map(t => typeLabels[t.type_client] || t.type_client),
+          datasets: [{
+            data: data.by_client_type.map(t => t.count),
+            backgroundColor: [
+              'rgba(239, 68, 68, 0.8)',   // Rouge pour VIP
+              'rgba(156, 163, 175, 0.8)', // Gris pour Argent
+              'rgba(251, 191, 36, 0.8)',  // Jaune pour Bronze
+              'rgba(59, 130, 246, 0.8)'   // Bleu pour Non-HVC
+            ],
+            borderWidth: 2,
+            borderColor: '#fff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { position: 'right' }
+          }
+        }
+      })
+    }
+    
+    // 3. Graphique Affluence par Heure (Bar Chart)
+    const hourlyCtx = document.getElementById('hourlyChart')
+    if (hourlyCtx) {
+      // Créer un tableau de 24 heures
+      const hourlyData = Array(24).fill(0)
+      data.by_hour.forEach(h => {
+        hourlyData[h.hour] = h.count
+      })
+      
+      chartsInstances.hourly = new Chart(hourlyCtx, {
+        type: 'bar',
+        data: {
+          labels: Array.from({length: 24}, (_, i) => `${i}h`),
+          datasets: [{
+            label: 'Nombre de Clients',
+            data: hourlyData,
+            backgroundColor: 'rgba(139, 92, 246, 0.8)',
+            borderColor: 'rgb(139, 92, 246)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: true }
+          },
+          scales: {
+            y: { beginAtZero: true, ticks: { precision: 0 } }
+          }
+        }
+      })
+    }
+    
+    // 4. Graphique Évolution Temps (Line Chart)
+    const waitingTrendCtx = document.getElementById('waitingTrendChart')
+    if (waitingTrendCtx) {
+      chartsInstances.waitingTrend = new Chart(waitingTrendCtx, {
+        type: 'line',
+        data: {
+          labels: data.waiting_trend.map(d => dayjs(d.date).format('DD/MM')),
+          datasets: [
+            {
+              label: 'Temps d\'Attente (min)',
+              data: data.waiting_trend.map(d => Math.round(d.avg_waiting)),
+              borderColor: 'rgb(249, 115, 22)',
+              backgroundColor: 'rgba(249, 115, 22, 0.1)',
+              tension: 0.4,
+              fill: true
+            },
+            {
+              label: 'Temps de Service (min)',
+              data: data.waiting_trend.map(d => Math.round(d.avg_service)),
+              borderColor: 'rgb(34, 197, 94)',
+              backgroundColor: 'rgba(34, 197, 94, 0.1)',
+              tension: 0.4,
+              fill: true
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: true, position: 'top' }
+          },
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      })
+    }
+    
+  } catch (error) {
+    console.error('Chart initialization error:', error)
+  }
+}
+
+function changeStatsPeriod(period) {
+  localStorage.setItem('statisticsPeriod', period)
+  switchTab('statistics')
+}
+
 // ============= ACTIONS =============
 
 async function callClient(clientId) {
@@ -1015,6 +1309,9 @@ async function switchTab(tabName) {
     case 'dashboard':
       html = await renderDashboard()
       break
+    case 'statistics':
+      html = await renderStatistics()
+      break
     case 'queue':
       html = await renderQueue()
       break
@@ -1033,6 +1330,11 @@ async function switchTab(tabName) {
   
   // Ajouter les event listeners
   attachEventListeners()
+  
+  // Initialiser les graphiques Chart.js si on est sur l'onglet statistiques
+  if (tabName === 'statistics') {
+    setTimeout(() => initializeCharts(), 100)
+  }
 }
 
 function attachEventListeners() {
