@@ -1480,9 +1480,10 @@ async function init() {
     currentUser = user
     renderMainApp()
     
-    // Ajouter le bouton de toggle du thème
+    // Ajouter le bouton de toggle du thème et le sélecteur de langue
     setTimeout(() => {
       addThemeToggle()
+      addLanguageSelector()
     }, 100)
     
     // Démarrer le monitoring VIP si c'est un chef ou team leader
@@ -1916,6 +1917,257 @@ function addThemeToggle() {
     themeToggle.innerHTML = `<i class="fas fa-${currentTheme === 'dark' ? 'sun' : 'moon'} text-yellow-500"></i>`
     
     nav.appendChild(themeToggle)
+  }
+}
+
+// Ajouter le sélecteur de langue dans la navigation
+function addLanguageSelector() {
+  const nav = document.querySelector('nav .flex.items-center.justify-between')
+  if (nav && !document.getElementById('language-selector')) {
+    const langSelector = document.createElement('div')
+    langSelector.id = 'language-selector'
+    langSelector.className = 'language-selector ml-4'
+    
+    const currentLang = localStorage.getItem('language') || 'fr'
+    langSelector.innerHTML = `
+      <i class="fas fa-globe"></i>
+      <select onchange="changeLanguage(this.value)" class="bg-transparent border-none text-sm font-medium cursor-pointer focus:outline-none">
+        <option value="fr" ${currentLang === 'fr' ? 'selected' : ''}>FR</option>
+        <option value="en" ${currentLang === 'en' ? 'selected' : ''}>EN</option>
+      </select>
+    `
+    
+    nav.appendChild(langSelector)
+  }
+}
+
+
+// ============= PWA SERVICE WORKER =============
+
+// Enregistrer le Service Worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then((registration) => {
+        console.log('✅ Service Worker enregistré:', registration.scope)
+        
+        // Vérifier les mises à jour
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // Nouvelle version disponible
+              showToast('Nouvelle version disponible ! Rechargez la page.', 'info', 5000)
+            }
+          })
+        })
+      })
+      .catch((error) => {
+        console.log('❌ Erreur Service Worker:', error)
+      })
+  })
+}
+
+// Prompt d'installation PWA
+let deferredPrompt
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault()
+  deferredPrompt = e
+  
+  // Afficher un message d'installation après 30 secondes
+  setTimeout(() => {
+    if (deferredPrompt) {
+      showToast('💡 Installez l\'app pour un accès rapide !', 'info', 10000)
+    }
+  }, 30000)
+})
+
+window.addEventListener('appinstalled', () => {
+  console.log('✅ PWA installée')
+  showToast('✅ Application installée avec succès !', 'success')
+  deferredPrompt = null
+})
+
+// ============= SYSTÈME MULTILINGUE (i18n) =============
+
+const translations = {
+  fr: {
+    // Navigation
+    'nav.dashboard': 'Tableau de bord',
+    'nav.statistics': 'Statistiques',
+    'nav.queue': 'File d\'attente',
+    'nav.advisors': 'Gestion Conseillers',
+    'nav.reports': 'Rapports',
+    'nav.current_client': 'Client actuel',
+    'nav.logout': 'Déconnexion',
+    
+    // Login
+    'login.title': 'Connexion',
+    'login.username': 'Nom d\'utilisateur',
+    'login.password': 'Mot de passe',
+    'login.button': 'Se connecter',
+    'login.error': 'Identifiants invalides',
+    
+    // Dashboard
+    'dashboard.title': 'Tableau de Bord',
+    'dashboard.waiting': 'En attente',
+    'dashboard.in_service': 'En service',
+    'dashboard.completed': 'Traités aujourd\'hui',
+    'dashboard.available': 'Conseillers disponibles',
+    'dashboard.avg_waiting': 'Temps d\'attente moyen',
+    
+    // Queue
+    'queue.title': 'File d\'Attente',
+    'queue.priority': 'Priorité',
+    'queue.name': 'Nom',
+    'queue.phone': 'Téléphone',
+    'queue.waiting_time': 'Temps d\'attente',
+    'queue.reason': 'Raison',
+    'queue.call': 'Appeler',
+    
+    // Reports
+    'reports.title': 'Rapports d\'Activité',
+    'reports.period': 'Période',
+    'reports.day': 'Jour',
+    'reports.week': 'Semaine',
+    'reports.month': 'Mois',
+    'reports.year': 'Année',
+    'reports.export_pdf': 'Exporter PDF',
+    'reports.export_excel': 'Exporter Excel',
+    'reports.export_csv': 'Exporter CSV',
+    
+    // Common
+    'common.save': 'Enregistrer',
+    'common.cancel': 'Annuler',
+    'common.delete': 'Supprimer',
+    'common.edit': 'Modifier',
+    'common.close': 'Fermer',
+    'common.search': 'Rechercher',
+    'common.loading': 'Chargement...',
+    'common.error': 'Erreur',
+    'common.success': 'Succès',
+    'common.minutes': 'minutes'
+  },
+  en: {
+    // Navigation
+    'nav.dashboard': 'Dashboard',
+    'nav.statistics': 'Statistics',
+    'nav.queue': 'Queue',
+    'nav.advisors': 'Advisor Management',
+    'nav.reports': 'Reports',
+    'nav.current_client': 'Current Client',
+    'nav.logout': 'Logout',
+    
+    // Login
+    'login.title': 'Login',
+    'login.username': 'Username',
+    'login.password': 'Password',
+    'login.button': 'Sign in',
+    'login.error': 'Invalid credentials',
+    
+    // Dashboard
+    'dashboard.title': 'Dashboard',
+    'dashboard.waiting': 'Waiting',
+    'dashboard.in_service': 'In Service',
+    'dashboard.completed': 'Completed Today',
+    'dashboard.available': 'Available Advisors',
+    'dashboard.avg_waiting': 'Average Wait Time',
+    
+    // Queue
+    'queue.title': 'Queue',
+    'queue.priority': 'Priority',
+    'queue.name': 'Name',
+    'queue.phone': 'Phone',
+    'queue.waiting_time': 'Wait Time',
+    'queue.reason': 'Reason',
+    'queue.call': 'Call',
+    
+    // Reports
+    'reports.title': 'Activity Reports',
+    'reports.period': 'Period',
+    'reports.day': 'Day',
+    'reports.week': 'Week',
+    'reports.month': 'Month',
+    'reports.year': 'Year',
+    'reports.export_pdf': 'Export PDF',
+    'reports.export_excel': 'Export Excel',
+    'reports.export_csv': 'Export CSV',
+    
+    // Common
+    'common.save': 'Save',
+    'common.cancel': 'Cancel',
+    'common.delete': 'Delete',
+    'common.edit': 'Edit',
+    'common.close': 'Close',
+    'common.search': 'Search',
+    'common.loading': 'Loading...',
+    'common.error': 'Error',
+    'common.success': 'Success',
+    'common.minutes': 'minutes'
+  }
+}
+
+// Langue active
+let currentLanguage = localStorage.getItem('language') || 'fr'
+
+// Fonction de traduction
+function t(key) {
+  return translations[currentLanguage][key] || key
+}
+
+// Changer de langue
+function changeLanguage(lang) {
+  if (lang !== 'fr' && lang !== 'en') lang = 'fr'
+  
+  currentLanguage = lang
+  localStorage.setItem('language', lang)
+  
+  // Changer la langue du document
+  document.documentElement.lang = lang
+  
+  // Rafraîchir l'interface
+  showToast(lang === 'fr' ? 'Langue changée en Français' : 'Language changed to English', 'success')
+  
+  // Recharger l'onglet actif
+  const activeTab = document.querySelector('.tab-button.border-yellow-500')?.dataset.tab
+  if (activeTab) {
+    setTimeout(() => switchTab(activeTab), 500)
+  }
+  
+  // Mettre à jour le sélecteur de langue
+  updateLanguageSelector()
+}
+
+// Mettre à jour le sélecteur de langue
+function updateLanguageSelector() {
+  const selector = document.getElementById('language-selector')
+  if (selector) {
+    selector.value = currentLanguage
+  }
+}
+
+// Ajouter le sélecteur de langue dans la navigation
+function addLanguageSelector() {
+  const nav = document.querySelector('nav .flex.items-center.justify-between')
+  if (nav && !document.getElementById('language-selector')) {
+    const wrapper = document.createElement('div')
+    wrapper.className = 'ml-4 flex items-center space-x-2'
+    
+    const icon = document.createElement('i')
+    icon.className = 'fas fa-globe text-yellow-500'
+    
+    const select = document.createElement('select')
+    select.id = 'language-selector'
+    select.className = 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-2 py-1 rounded text-sm'
+    select.innerHTML = `
+      <option value="fr" ${currentLanguage === 'fr' ? 'selected' : ''}>FR</option>
+      <option value="en" ${currentLanguage === 'en' ? 'selected' : ''}>EN</option>
+    `
+    select.onchange = (e) => changeLanguage(e.target.value)
+    
+    wrapper.appendChild(icon)
+    wrapper.appendChild(select)
+    nav.appendChild(wrapper)
   }
 }
 

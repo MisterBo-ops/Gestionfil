@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" fill="#FFC800"/>
+  <circle cx="96" cy="96" r="38" fill="#000000"/>
+  <text x="96" y="96" font-family="Arial, sans-serif" font-size="80" font-weight="bold" fill="#FFC800" text-anchor="middle" dominant-baseline="central">Q</text>
+</svg>

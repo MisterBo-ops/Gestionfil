@@ -12,6 +12,10 @@ const app = new Hono<{ Bindings: Bindings }>()
 // Enable CORS
 app.use('/api/*', cors())
 
+// Serve PWA files from root
+app.get('/manifest.json', (c) => c.redirect('/static/manifest.json'))
+app.get('/sw.js', (c) => c.redirect('/static/sw.js'))
+
 // Serve static files
 app.use('/static/*', serveStatic({ root: './public' }))
 
@@ -946,7 +950,15 @@ app.get('/', (c) => {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="description" content="Application de gestion de file d'attente pour agence MTN avec système de priorités VIP">
+        <meta name="theme-color" content="#FFC800">
         <title>Gestion de File d'Attente - Agence MTN</title>
+        
+        <!-- PWA Manifest -->
+        <link rel="manifest" href="/manifest.json">
+        <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+        <link rel="apple-touch-icon" href="/static/icon-192.png">
+        
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
         <style>

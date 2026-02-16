@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Générateur d'Icônes PWA</title>
+</head>
+<body>
+    <h1>Génération des icônes PWA</h1>
+    <canvas id="canvas192" width="192" height="192" style="border:1px solid #000"></canvas>
+    <canvas id="canvas512" width="512" height="512" style="border:1px solid #000"></canvas>
+    
+    <script>
+        // Générer icône 192x192
+        const canvas192 = document.getElementById('canvas192');
+        const ctx192 = canvas192.getContext('2d');
+        
+        // Fond jaune MTN
+        ctx192.fillStyle = '#FFC800';
+        ctx192.fillRect(0, 0, 192, 192);
+        
+        // Cercle noir
+        ctx192.fillStyle = '#000000';
+        ctx192.beginPath();
+        ctx192.arc(96, 96, 45, 0, Math.PI * 2);
+        ctx192.fill();
+        
+        // Lettre Q
+        ctx192.fillStyle = '#FFC800';
+        ctx192.font = 'bold 80px Arial';
+        ctx192.textAlign = 'center';
+        ctx192.textBaseline = 'middle';
+        ctx192.fillText('Q', 96, 96);
+        
+        // Générer icône 512x512
+        const canvas512 = document.getElementById('canvas512');
+        const ctx512 = canvas512.getContext('2d');
+        
+        ctx512.fillStyle = '#FFC800';
+        ctx512.fillRect(0, 0, 512, 512);
+        
+        ctx512.fillStyle = '#000000';
+        ctx512.beginPath();
+        ctx512.arc(256, 256, 120, 0, Math.PI * 2);
+        ctx512.fill();
+        
+        ctx512.fillStyle = '#FFC800';
+        ctx512.font = 'bold 220px Arial';
+        ctx512.textAlign = 'center';
+        ctx512.textBaseline = 'middle';
+        ctx512.fillText('Q', 256, 256);
+        
+        // Télécharger automatiquement
+        setTimeout(() => {
+            // Icône 192
+            canvas192.toBlob((blob) => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'icon-192.png';
+                a.click();
+            });
+            
+            // Icône 512
+            setTimeout(() => {
+                canvas512.toBlob((blob) => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'icon-512.png';
+                    a.click();
+                });
+            }, 1000);
+        }, 500);
+    </script>
+</body>
+</html>
