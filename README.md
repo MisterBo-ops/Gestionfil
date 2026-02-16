@@ -4,7 +4,7 @@ Application web complète pour la gestion intelligente des files d'attente dans 
 
 ## 🌐 URLs
 
-- **Application Production** : https://8ae4f1af.queue-manager-44o.pages.dev
+- **Application Production** : https://642741b4.queue-manager-44o.pages.dev
 - **URL Alternative** : https://queue-manager-44o.pages.dev
 - **Dépôt GitHub** : https://github.com/MisterBo-ops/Gestionfil
 - **Application Sandbox** : https://3000-ix94we9gk7723rdlhgt3m-c07dda5e.sandbox.novita.ai
@@ -139,6 +139,68 @@ Application web complète pour la gestion intelligente des files d'attente dans 
 - **Auto-refresh** : Mise à jour automatique toutes les 30 secondes
 - **Logs d'activité** : Traçabilité complète de toutes les actions
 
+### 📄 Export de Rapports (PDF/Excel/CSV)
+
+**Export multi-format des rapports d'activité** :
+
+#### 📊 Format PDF
+- Rapport formaté avec en-tête MTN (couleurs jaune/noir)
+- 3 sections : Statistiques globales, Performance conseillers, Répartition types clients
+- Tableaux avec style rayé (striped)
+- Pagination automatique
+- Nom de fichier : `rapport_mtn_{période}_{timestamp}.pdf`
+
+#### 📈 Format Excel
+- Fichier .xlsx avec 3 feuilles de calcul séparées
+- Feuille 1 : Statistiques globales
+- Feuille 2 : Performance par conseiller
+- Feuille 3 : Répartition par type de client
+- Format tabulaire optimisé pour analyses
+
+#### 📋 Format CSV
+- Format universel compatible avec tous les outils
+- Données des conseillers (nom, clients servis, temps moyens)
+- Encodage UTF-8
+
+**Boutons d'export** : Disponibles dans l'onglet Rapports (PDF rouge, Excel vert, CSV bleu)
+
+### 🔔 Notifications en Temps Réel
+
+**Système complet d'alertes et notifications** :
+
+#### 🔊 Alertes Sonores
+- Son standard : Beep simple (800Hz, 0.5s)
+- Son VIP : Double beep urgent (1200Hz, 0.3s × 2)
+- Web Audio API (pas de fichier externe)
+
+#### 📢 Toast Notifications
+- Notifications visuelles colorées (vert/rouge/jaune/bleu)
+- Animation slide-in depuis la droite
+- Disparition automatique après 3-5 secondes
+- Icônes selon le type (✓ ✗ ⚠ ℹ)
+
+#### ⚠️ Monitoring VIP Automatique
+- Vérification toutes les 2 minutes
+- Alerte si client VIP attend >30 minutes
+- Rappel toutes les 5 minutes par client
+- Uniquement pour Chef d'agence et Team Leader
+
+### 🌙 Mode Sombre
+
+**Thème sombre pour réduire la fatigue oculaire** :
+
+#### ✨ Fonctionnalités
+- Toggle button (icône lune/soleil) dans la navigation
+- Transitions fluides entre les thèmes (0.3s)
+- Préférence sauvegardée dans localStorage
+- Variables CSS pour couleurs personnalisables
+- Classes Tailwind `dark:` pour adaptation automatique
+
+#### 🎨 Thèmes
+- **Mode clair** : Fond gris clair (#f3f4f6), texte noir
+- **Mode sombre** : Fond gris foncé (#1f2937), texte blanc
+- Adaptation complète de tous les éléments UI
+
 ## 🗄️ Architecture des Données
 
 ### Tables Principales
@@ -222,6 +284,14 @@ Application web complète pour la gestion intelligente des files d'attente dans 
 - **Process Manager** : PM2 (développement)
 
 ## 📅 Historique des Versions
+
+### Version 2.1 - Pack Productivité (16 février 2026)
+- 📄 **Export de rapports** : PDF (jsPDF), Excel (SheetJS), CSV
+- 🔔 **Notifications temps réel** : Alertes sonores + Toast + Monitoring VIP automatique
+- 🌙 **Mode sombre** : Toggle lune/soleil + sauvegarde préférence
+- 📦 **Bibliothèques** : jsPDF 2.5.1, SheetJS 0.18.5
+- 🎨 **UX améliorée** : Boutons colorés, animations, transitions
+- 📦 Déploiement: https://642741b4.queue-manager-44o.pages.dev
 
 ### Version 2.0 - Statistiques Interactives (16 février 2026)
 - ✨ **Nouveau module de statistiques** avec 4 graphiques interactifs Chart.js
