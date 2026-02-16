@@ -949,11 +949,70 @@ app.get('/', (c) => {
         <title>Gestion de File d'Attente - Agence MTN</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+        <style>
+          /* Mode sombre - Variables CSS */
+          :root {
+            --bg-primary: #f3f4f6;
+            --bg-secondary: #ffffff;
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --border-color: #e5e7eb;
+          }
+          
+          [data-theme="dark"] {
+            --bg-primary: #1f2937;
+            --bg-secondary: #374151;
+            --text-primary: #f9fafb;
+            --text-secondary: #d1d5db;
+            --border-color: #4b5563;
+          }
+          
+          body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            transition: background-color 0.3s, color 0.3s;
+          }
+          
+          /* Animation de notification */
+          @keyframes pulse-notification {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+          }
+          
+          .notification-badge {
+            animation: pulse-notification 2s infinite;
+          }
+          
+          /* Toast notifications */
+          .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            min-width: 300px;
+            animation: slideIn 0.3s ease-out;
+          }
+          
+          @keyframes slideIn {
+            from {
+              transform: translateX(100%);
+              opacity: 0;
+            }
+            to {
+              transform: translateX(0);
+              opacity: 1;
+            }
+          }
+        </style>
         <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/dayjs.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/plugin/relativeTime.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/locale/fr.js"></script>
+        <!-- Export PDF/Excel/CSV -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     </head>
     <body class="bg-gray-100">
         <div id="app"></div>

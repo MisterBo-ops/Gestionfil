@@ -704,13 +704,14 @@ async function renderReports() {
     
     return `
       <div class="space-y-6">
-        <!-- Sélecteur de période -->
-        <div class="bg-white rounded-lg shadow p-6">
-          <div class="flex items-center justify-between">
-            <h2 class="text-xl font-bold text-gray-800">
+        <!-- Sélecteur de période et boutons d'export -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <div class="flex items-center justify-between flex-wrap gap-4">
+            <h2 class="text-xl font-bold text-gray-800 dark:text-gray-200">
               <i class="fas fa-calendar-alt mr-2"></i>Période: ${periodLabels[period]}
             </h2>
-            <div class="flex space-x-2">
+            <div class="flex space-x-2 flex-wrap gap-2">
+              <!-- Sélecteur de période -->
               <button onclick="changePeriod('day')" 
                 class="px-4 py-2 rounded-lg transition ${period === 'day' ? 'bg-yellow-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}">
                 Jour
@@ -726,6 +727,26 @@ async function renderReports() {
               <button onclick="changePeriod('year')" 
                 class="px-4 py-2 rounded-lg transition ${period === 'year' ? 'bg-yellow-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}">
                 Année
+              </button>
+              
+              <!-- Séparateur -->
+              <div class="border-l border-gray-300 dark:border-gray-600 mx-2"></div>
+              
+              <!-- Boutons d'export -->
+              <button onclick="exportReportToPDF()" 
+                class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center space-x-2">
+                <i class="fas fa-file-pdf"></i>
+                <span>PDF</span>
+              </button>
+              <button onclick="exportReportToExcel()" 
+                class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center space-x-2">
+                <i class="fas fa-file-excel"></i>
+                <span>Excel</span>
+              </button>
+              <button onclick="exportReportToCSV()" 
+                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center space-x-2">
+                <i class="fas fa-file-csv"></i>
+                <span>CSV</span>
               </button>
             </div>
           </div>
@@ -1438,6 +1459,16 @@ async function renderMainApp() {
 // ============= INITIALISATION =============
 
 async function init() {
+  // Initialiser le mode sombre
+  initDarkMode()
+  
+  // Initialiser les sons
+  try {
+    initSounds()
+  } catch (error) {
+    console.log('Audio init skipped:', error)
+  }
+  
   const token = getToken()
   if (!token) {
     renderLoginPage()
@@ -1448,6 +1479,18 @@ async function init() {
     const user = await apiCall('/auth/me')
     currentUser = user
     renderMainApp()
+    
+    // Ajouter le bouton de toggle du thème
+    setTimeout(() => {
+      addThemeToggle()
+    }, 100)
+    
+    // Démarrer le monitoring VIP si c'est un chef ou team leader
+    if (user.role === 'chef' || user.role === 'team_leader') {
+      startVIPMonitoring()
+      // Première vérification immédiate
+      setTimeout(checkVIPWaitingTime, 5000)
+    }
   } catch (error) {
     clearToken()
     renderLoginPage()
@@ -1468,3 +1511,411 @@ window.updateConseiller = updateConseiller
 window.deleteConseiller = deleteConseiller
 window.changePeriod = changePeriod
 window.logout = logout
+
+// ============= EXPORT PDF/EXCEL/CSV =============
+
+async function exportReportToPDF() {
+  try {
+    const period = localStorage.getItem('reportPeriod') || 'day'
+    const data = await apiCall(`/reports?period=${period}`)
+    
+    const { jsPDF } = window.jspdf
+    const doc = new jsPDF()
+    
+    const periodLabels = {
+      day: "Aujourd'hui",
+      week: 'Cette semaine',
+      month: 'Ce mois',
+      year: 'Cette année'
+    }
+    
+    // En-tête
+    doc.setFontSize(20)
+    doc.setTextColor(255, 200, 0) // Jaune MTN
+    doc.text('MTN - Rapport d\'Activité', 105, 20, { align: 'center' })
+    
+    doc.setFontSize(12)
+    doc.setTextColor(0, 0, 0)
+    doc.text(`Période: ${periodLabels[period]}`, 105, 30, { align: 'center' })
+    doc.text(`Date: ${dayjs().format('DD/MM/YYYY HH:mm')}`, 105, 37, { align: 'center' })
+    
+    // Statistiques globales
+    doc.setFontSize(14)
+    doc.setTextColor(0, 0, 0)
+    doc.text('Statistiques Globales', 14, 50)
+    
+    doc.autoTable({
+      startY: 55,
+      head: [['Métrique', 'Valeur']],
+      body: [
+        ['Total clients traités', data.total_clients.toString()],
+        ['Temps d\'attente moyen', `${data.avg_times.waiting} minutes`],
+        ['Temps de service moyen', `${data.avg_times.service} minutes`],
+        ['Temps total moyen', `${data.avg_times.total} minutes`]
+      ],
+      theme: 'striped',
+      headStyles: { fillColor: [255, 200, 0], textColor: [0, 0, 0] }
+    })
+    
+    // Performance par conseiller
+    let finalY = doc.lastAutoTable.finalY + 10
+    doc.setFontSize(14)
+    doc.text('Performance par Conseiller', 14, finalY)
+    
+    doc.autoTable({
+      startY: finalY + 5,
+      head: [['Conseiller', 'Clients Servis', 'Temps Service Moy', 'Temps Attente Moy']],
+      body: data.by_conseiller.map(c => [
+        c.full_name,
+        c.clients_served.toString(),
+        `${Math.round(c.avg_service_time)} min`,
+        `${Math.round(c.avg_waiting_time)} min`
+      ]),
+      theme: 'striped',
+      headStyles: { fillColor: [255, 200, 0], textColor: [0, 0, 0] }
+    })
+    
+    // Répartition par type de client
+    finalY = doc.lastAutoTable.finalY + 10
+    doc.setFontSize(14)
+    doc.text('Répartition par Type de Client', 14, finalY)
+    
+    const typeLabels = {
+      HVC_OR: 'HVC Or (VIP)',
+      HVC_ARGENT: 'HVC Argent',
+      HVC_BRONZE: 'HVC Bronze',
+      NON_HVC: 'Non-HVC'
+    }
+    
+    doc.autoTable({
+      startY: finalY + 5,
+      head: [['Type Client', 'Nombre', 'Temps Moyen']],
+      body: data.by_type.map(t => [
+        typeLabels[t.type_client] || t.type_client,
+        t.count.toString(),
+        `${Math.round(t.avg_total_time)} min`
+      ]),
+      theme: 'striped',
+      headStyles: { fillColor: [255, 200, 0], textColor: [0, 0, 0] }
+    })
+    
+    // Pied de page
+    const pageCount = doc.internal.getNumberOfPages()
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i)
+      doc.setFontSize(10)
+      doc.setTextColor(128, 128, 128)
+      doc.text(
+        `Page ${i} sur ${pageCount}`,
+        doc.internal.pageSize.getWidth() / 2,
+        doc.internal.pageSize.getHeight() - 10,
+        { align: 'center' }
+      )
+    }
+    
+    // Télécharger
+    const filename = `rapport_mtn_${period}_${dayjs().format('YYYYMMDD_HHmmss')}.pdf`
+    doc.save(filename)
+    
+    showNotification('Rapport PDF téléchargé avec succès !', 'success')
+  } catch (error) {
+    console.error('Export PDF error:', error)
+    showNotification('Erreur lors de l\'export PDF', 'error')
+  }
+}
+
+async function exportReportToExcel() {
+  try {
+    const period = localStorage.getItem('reportPeriod') || 'day'
+    const data = await apiCall(`/reports?period=${period}`)
+    
+    const periodLabels = {
+      day: "Aujourd'hui",
+      week: 'Cette semaine',
+      month: 'Ce mois',
+      year: 'Cette année'
+    }
+    
+    const wb = XLSX.utils.book_new()
+    
+    // Feuille 1: Statistiques globales
+    const globalData = [
+      ['MTN - Rapport d\'Activité'],
+      [`Période: ${periodLabels[period]}`],
+      [`Date: ${dayjs().format('DD/MM/YYYY HH:mm')}`],
+      [],
+      ['Statistiques Globales'],
+      ['Métrique', 'Valeur'],
+      ['Total clients traités', data.total_clients],
+      ['Temps d\'attente moyen (min)', data.avg_times.waiting],
+      ['Temps de service moyen (min)', data.avg_times.service],
+      ['Temps total moyen (min)', data.avg_times.total]
+    ]
+    const ws1 = XLSX.utils.aoa_to_sheet(globalData)
+    XLSX.utils.book_append_sheet(wb, ws1, 'Statistiques')
+    
+    // Feuille 2: Performance conseillers
+    const conseillerData = [
+      ['Performance par Conseiller'],
+      [],
+      ['Conseiller', 'Clients Servis', 'Temps Service Moy (min)', 'Temps Attente Moy (min)'],
+      ...data.by_conseiller.map(c => [
+        c.full_name,
+        c.clients_served,
+        Math.round(c.avg_service_time),
+        Math.round(c.avg_waiting_time)
+      ])
+    ]
+    const ws2 = XLSX.utils.aoa_to_sheet(conseillerData)
+    XLSX.utils.book_append_sheet(wb, ws2, 'Conseillers')
+    
+    // Feuille 3: Types de clients
+    const typeLabels = {
+      HVC_OR: 'HVC Or (VIP)',
+      HVC_ARGENT: 'HVC Argent',
+      HVC_BRONZE: 'HVC Bronze',
+      NON_HVC: 'Non-HVC'
+    }
+    
+    const typeData = [
+      ['Répartition par Type de Client'],
+      [],
+      ['Type Client', 'Nombre', 'Temps Moyen (min)'],
+      ...data.by_type.map(t => [
+        typeLabels[t.type_client] || t.type_client,
+        t.count,
+        Math.round(t.avg_total_time)
+      ])
+    ]
+    const ws3 = XLSX.utils.aoa_to_sheet(typeData)
+    XLSX.utils.book_append_sheet(wb, ws3, 'Types Clients')
+    
+    // Télécharger
+    const filename = `rapport_mtn_${period}_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`
+    XLSX.writeFile(wb, filename)
+    
+    showNotification('Rapport Excel téléchargé avec succès !', 'success')
+  } catch (error) {
+    console.error('Export Excel error:', error)
+    showNotification('Erreur lors de l\'export Excel', 'error')
+  }
+}
+
+async function exportReportToCSV() {
+  try {
+    const period = localStorage.getItem('reportPeriod') || 'day'
+    const data = await apiCall(`/reports?period=${period}`)
+    
+    // Créer les données CSV pour les conseillers
+    let csv = 'Conseiller,Clients Servis,Temps Service Moyen (min),Temps Attente Moyen (min)\n'
+    data.by_conseiller.forEach(c => {
+      csv += `"${c.full_name}",${c.clients_served},${Math.round(c.avg_service_time)},${Math.round(c.avg_waiting_time)}\n`
+    })
+    
+    // Télécharger
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `rapport_mtn_${period}_${dayjs().format('YYYYMMDD_HHmmss')}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    
+    showNotification('Rapport CSV téléchargé avec succès !', 'success')
+  } catch (error) {
+    console.error('Export CSV error:', error)
+    showNotification('Erreur lors de l\'export CSV', 'error')
+  }
+}
+
+
+// ============= NOTIFICATIONS & ALERTES =============
+
+let notificationSound = null
+let vipAlertSound = null
+
+// Charger les sons (sons par défaut du navigateur ou via API Web Audio)
+function initSounds() {
+  // Son simple pour notifications standard
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)()
+  
+  // Créer un son de notification simple
+  window.playNotificationSound = function() {
+    const oscillator = audioContext.createOscillator()
+    const gainNode = audioContext.createGain()
+    
+    oscillator.connect(gainNode)
+    gainNode.connect(audioContext.destination)
+    
+    oscillator.frequency.value = 800
+    oscillator.type = 'sine'
+    
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5)
+    
+    oscillator.start(audioContext.currentTime)
+    oscillator.stop(audioContext.currentTime + 0.5)
+  }
+  
+  // Son d'alerte VIP (plus urgent)
+  window.playVIPAlert = function() {
+    const oscillator = audioContext.createOscillator()
+    const gainNode = audioContext.createGain()
+    
+    oscillator.connect(gainNode)
+    gainNode.connect(audioContext.destination)
+    
+    oscillator.frequency.value = 1200
+    oscillator.type = 'square'
+    
+    gainNode.gain.setValueAtTime(0.4, audioContext.currentTime)
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3)
+    
+    oscillator.start(audioContext.currentTime)
+    oscillator.stop(audioContext.currentTime + 0.3)
+    
+    // Double beep
+    setTimeout(() => {
+      const osc2 = audioContext.createOscillator()
+      const gain2 = audioContext.createGain()
+      osc2.connect(gain2)
+      gain2.connect(audioContext.destination)
+      osc2.frequency.value = 1200
+      osc2.type = 'square'
+      gain2.gain.setValueAtTime(0.4, audioContext.currentTime)
+      gain2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3)
+      osc2.start(audioContext.currentTime)
+      osc2.stop(audioContext.currentTime + 0.3)
+    }, 400)
+  }
+}
+
+// Afficher une toast notification
+function showToast(message, type = 'info', duration = 3000) {
+  const toast = document.createElement('div')
+  toast.className = `toast ${type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'} text-white px-6 py-4 rounded-lg shadow-lg`
+  
+  const icon = type === 'success' ? '✓' : type === 'error' ? '✗' : type === 'warning' ? '⚠' : 'ℹ'
+  
+  toast.innerHTML = `
+    <div class="flex items-center space-x-3">
+      <span class="text-2xl">${icon}</span>
+      <span class="font-medium">${message}</span>
+    </div>
+  `
+  
+  document.body.appendChild(toast)
+  
+  // Jouer un son selon le type
+  if (type === 'warning' && window.playVIPAlert) {
+    window.playVIPAlert()
+  } else if (window.playNotificationSound) {
+    window.playNotificationSound()
+  }
+  
+  setTimeout(() => {
+    toast.style.opacity = '0'
+    toast.style.transform = 'translateX(100%)'
+    setTimeout(() => toast.remove(), 300)
+  }, duration)
+}
+
+// Système de notifications pour clients en attente
+let lastVIPAlertTime = {}
+
+async function checkVIPWaitingTime() {
+  try {
+    const queue = await apiCall('/clients/queue')
+    
+    queue.forEach(client => {
+      if (client.type_client === 'HVC_OR' && client.waiting_minutes > 30) {
+        const alertKey = `vip_${client.id}`
+        const now = Date.now()
+        
+        // Alerter toutes les 5 minutes pour un même client VIP
+        if (!lastVIPAlertTime[alertKey] || (now - lastVIPAlertTime[alertKey]) > 5 * 60 * 1000) {
+          showToast(
+            `⚠️ CLIENT VIP EN ATTENTE : ${client.prenom} ${client.nom} attend depuis ${client.waiting_minutes} minutes !`,
+            'warning',
+            5000
+          )
+          lastVIPAlertTime[alertKey] = now
+        }
+      }
+    })
+  } catch (error) {
+    console.error('VIP check error:', error)
+  }
+}
+
+// Vérifier les VIP toutes les 2 minutes
+let vipCheckInterval = null
+
+function startVIPMonitoring() {
+  if (vipCheckInterval) clearInterval(vipCheckInterval)
+  vipCheckInterval = setInterval(checkVIPWaitingTime, 2 * 60 * 1000) // Toutes les 2 minutes
+}
+
+function stopVIPMonitoring() {
+  if (vipCheckInterval) {
+    clearInterval(vipCheckInterval)
+    vipCheckInterval = null
+  }
+}
+
+// ============= MODE SOMBRE =============
+
+function initDarkMode() {
+  // Récupérer la préférence sauvegardée
+  const savedTheme = localStorage.getItem('theme') || 'light'
+  applyTheme(savedTheme)
+}
+
+function applyTheme(theme) {
+  if (theme === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark')
+    document.body.classList.add('dark')
+  } else {
+    document.documentElement.removeAttribute('data-theme')
+    document.body.classList.remove('dark')
+  }
+  localStorage.setItem('theme', theme)
+  
+  // Mettre à jour l'icône du bouton toggle
+  updateThemeToggleIcon(theme)
+}
+
+function toggleDarkMode() {
+  const currentTheme = localStorage.getItem('theme') || 'light'
+  const newTheme = currentTheme === 'light' ? 'dark' : 'light'
+  applyTheme(newTheme)
+}
+
+function updateThemeToggleIcon(theme) {
+  const toggleBtn = document.getElementById('theme-toggle')
+  if (toggleBtn) {
+    const icon = toggleBtn.querySelector('i')
+    if (icon) {
+      icon.className = theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon'
+    }
+  }
+}
+
+// Ajouter le bouton toggle dans la navigation
+function addThemeToggle() {
+  const nav = document.querySelector('nav .flex.items-center.justify-between')
+  if (nav && !document.getElementById('theme-toggle')) {
+    const themeToggle = document.createElement('button')
+    themeToggle.id = 'theme-toggle'
+    themeToggle.className = 'ml-4 p-2 rounded-lg hover:bg-yellow-500 hover:bg-opacity-20 transition'
+    themeToggle.onclick = toggleDarkMode
+    
+    const currentTheme = localStorage.getItem('theme') || 'light'
+    themeToggle.innerHTML = `<i class="fas fa-${currentTheme === 'dark' ? 'sun' : 'moon'} text-yellow-500"></i>`
+    
+    nav.appendChild(themeToggle)
+  }
+}
+
